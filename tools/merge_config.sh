@@ -88,9 +88,23 @@ done
 INITFILE=$1
 shift;
 
+# There are two variables that impact where the .config will be dropped, 
+# O= and KBUILD_OUTPUT=. So we'll respect those variables and use them as
+# an output directory as well. These two variables are not propagating
+# automatically to the kernel build, so always explicitly setting O=
+# and passing it to the kernel build ensures that it is respected.
+if [ "$OUTPUT" = "." ]; then
+	if [ -n "$KBUILD_OUTPUT" ]; then
+		OUTPUT=$KBUILD_OUTPUT
+	fi
+	if [ -n "$O" ]; then
+		OUTPUT=$O
+	fi
+fi
+
 MERGE_LIST=$*
 SED_CONFIG_EXP="s/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/p"
-TMP_FILE=$(mktemp ./.tmp.config.XXXXXXXXXX)
+TMP_FILE=$(mktemp $OUTPUT/.tmp.config.XXXXXXXXXX)
 
 echo "Using $INITFILE as base"
 cat $INITFILE > $TMP_FILE
