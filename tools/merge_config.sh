@@ -38,7 +38,7 @@ if [ -z "$DEBUG" ]; then
 	trap clean_up HUP INT TERM
 fi
 
-MAKE=true
+MAKE_FLAG=true
 ALLTARGET=alldefconfig
 WARNREDUN=false
 OUTPUT=.
@@ -51,7 +51,7 @@ while true; do
 		continue
 		;;
 	"-m")
-		MAKE=false
+		MAKE_FLAG=false
 		shift
 		continue
 		;;
@@ -119,7 +119,7 @@ for MERGE_FILE in $MERGE_LIST ; do
 	cat $MERGE_FILE >> $TMP_FILE
 done
 
-if [ "$MAKE" = "false" ]; then
+if [ "$MAKE_FLAG" = "false" ]; then
 	cp $TMP_FILE $OUTPUT/.config
 	echo "#"
 	echo "# merged configuration written to $OUTPUT/.config (needs make)"
