@@ -716,6 +716,9 @@ do_patch()
 	    grep -q -E "$name$" $series_file
 	    if [ $? -ne 0 ]; then
 		echo $sname >> $series_file
+		if [ -n "$meta_merged" ]; then
+		    git update-index --assume-unchanged $series_file
+                fi
 	    fi
 
             # arrange for the patch to be locally available for application
