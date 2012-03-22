@@ -36,7 +36,7 @@ cat <<EOF
 
  kgit-meta [--init] [--kconf] [--apply|--patch] [--continue]
            [--update] [--rc=<file>] [--stop_at=<patch>] [--skip=<patch>] 
-           [--dump] [--interactive] [-v] [-h] <meta-series>
+           [--dump] [-v] [-h] <meta-series>
 
    <meta-series>: required if --apply or --kconf or --patch is used
 
@@ -50,7 +50,6 @@ cat <<EOF
                  patches simply because a branch exist
 
      --stop_at: during application stop at a particular patch
-     --interactive: not implemented
      --update: depending on the action, this triggers additional 
                processing. --kconf --update will trigger an update
                of all the fragments in the repo AND setup the 
@@ -89,9 +88,6 @@ while [ $# -gt 0 ]; do
 	--skip)
 		_skip=$2
 		shift
-		;;
-	--interactive)
-	        _interactive=t
 		;;
 	-f|--force)
 		_force=t
@@ -1110,7 +1106,6 @@ if [ -n "$_init" ]; then
 
     mkdir -p $work_dir
     mkdir -p $work_cfg_dir
-    mkdir -p $work_cfg_dir/meta
 fi
 
 if [ -n "$_meta_series" ]; then
