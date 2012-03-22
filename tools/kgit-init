@@ -155,7 +155,7 @@ dest=$3
 
 meta_dir=meta
 meta_branch=meta
-content_branch=base
+content_branch=master
 
 # now fixup based on zero'd values
 if [ -z "$initial_branch_point" ]; then
@@ -282,36 +282,14 @@ if [ -n "$new_repo" ]; then
 		git reset --hard $initial_branch_point
 	    fi
 	else
-	    git clone $clone_opt $src $dest
-	    r=$?
-	    if [ $r -ne 0 ]; then
-		echo [ERROR] git clone of \"$src\" failed
-		exit $r
-	    fi
-	    cd $dest
-
-	    if [ -n "$clean" ]; then
-		clean_tgt_repo
-	    fi
-
-	    git show-ref --quiet --verify -- "refs/heads/$meta_branch";
-	    if [ $? -eq 1 ]; then
-		if [ -n "$verbose" ]; then
-		    echo "[INFO] creating branch $meta_branch from $initial_branch_point";
-		else
-		    checkout_opts=-q
-		fi
-		git checkout $checkout_opts -b $meta_branch $initial_branch_point
-	    else
-		# change the type of repo ...
-		git checkout $meta_branch
-		existing_repo=t
-	    fi
+	    echo "[ERROR] Could not find source repository $src. remote"
+	    echo "        source repositories are not supported"
+	    exit 1
 	fi
     fi
 fi
 
-if [ -n "$new_repo" ] || [ -n "$existing_but_flat_repo" ]; then
+if [ -n "$new_repo" ]; then
     if [ ! -d "$meta_dir/cfg/scratch/obj" ]; then
 	mkdir -p $meta_dir/cfg/scratch/obj
     fi
@@ -350,17 +328,10 @@ if [ -n "$new_repo" ] || [ -n "$existing_but_flat_repo" ]; then
 	echo "Initial creation marker" > .create_stamp
 	git add -f .create_stamp
 	git add -f .gitignore
-
 	git commit -q -m "$message"
     fi
 
-    git show-ref --quiet --verify -- "refs/heads/$meta_branch";
-    if [ $? -eq 1 ]; then
-        # create a meta-information branch
-	git branch $meta_branch $initial_branch_point
-        # tag the base
-	git tag "meta_`date +%F`" $initial_branch_point
-    fi
+    git checkout -q $content_branch
 fi
 
 if [ -n "$existing_repo" ]; then
