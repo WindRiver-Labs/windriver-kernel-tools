@@ -26,30 +26,25 @@ usage()
 cat <<EOF
 
  kgit-checkpoint -b <target checkpoint branch> 
-                 [-c] [-r] [-d] [-nj] [-v] <action>
+                 [-c] [-r] [-d] [-v] <action>
  
    -b:  branch that stores checkpointed files
    -r:  restore checkpoint commit
    -c:  create a checkpoint commit
    -m:  checkpoint message (the date will be used if not supplied)
-   -nj: no-join don't attempt to join checkpoint with existing checkpoints
    -v:  verbose 
-   --continue: continue an aborted checkpoint
-   <action>: 'restore' or 'create'. equivalent to -r and -c -j
+
+   <action>: 'restore' or 'create'. equivalent to -r and -c
 
 EOF
 }
 
 # command line processing
-join_checkpoints=t
 while [ $# -gt 0 ]; do
 	case "$1" in
                 -b|--b)
                         cmd_branch=$2
                         shift
-                        ;;
-                -nj|--nj)
-                        join_checkpoints=
                         ;;
                 -m|--m)
                         checkpoint_msg="$2"
@@ -64,10 +59,6 @@ while [ $# -gt 0 ]; do
                         ;;
 	        -c|--c)
                         restoring=
-			checkpointing=t
-                        ;;
-	        --continue)
-                        continuing=t
 			checkpointing=t
                         ;;
 	        -h|--h)
@@ -100,7 +91,6 @@ case $action in
     create)
 	restoring=
 	checkpointing=t
-	join_checkpoints=t
 	;;
     restore)
 	restoring=t
@@ -141,10 +131,8 @@ fi
 git show $checkpoint_branch:wrs &> /dev/null
 if [ $? -eq 0 ]; then
     meta_dir=wrs
-    base_branch=wrs_base
 else
     meta_dir=meta
-    base_branch=master
 fi
 
 if [ -z "$files_to_checkpoint" ]; then
@@ -161,47 +149,31 @@ if [ -z "$checkpoint_branch" ]; then
     exit 1
 fi
 
-if [ -n "$checkpointing" ]; then  
-    # check to see if we are continuing
-    if [ -n "$continuing" ]; then
-	if [ -n "$verbose" ]; then
-	    echo "Continuing checkpoint on $checkpoint_branch"
-	fi
-	# commit the merge commit, you must have already added the
-	# files
-	git commit -s
-	if [ $? -ne 0 ]; then
-	    echo "ERROR: unable to complete the checkpoint, did you add the files?"
-	    exit 1
-	fi
-	git branch -d $checkpoint_branch-temp
-	exit 0
-    fi
-  
+if [ -n "$checkpointing" ]; then    
     if [ -n "$verbose" ]; then
 	echo "Creating checkpoint on branch $checkpoint_branch"
     fi
 
-    # create a temp branch for the new checkpoint
-    merge_base=`git merge-base $checkpoint_branch $base_branch`
-    git checkout -q -b $checkpoint_branch-temp $merge_base
-
-    # Test if we are still checkpointed. We can tell this by
-    # noting that afer the switch to this temp branch if the files
-    # like 'meta' are untracked, since they are only tracked
-    # by the meta branch.
-    x=`git ls-files -o $meta_dir | head -n1`
-    if [ -z "$x" ]; then
-	# we are fully checkpointed, delete the temp branch
-	# and switch to the actual checkpoint branch to keep
-	# things fast forward
-	git checkout -q $checkpoint_branch
-	git branch -D $checkpoint_branch-temp
+    # if the branch doesn't already exist. Create it as an orphan.
+    git show-ref --quiet --verify -- "refs/heads/$checkpoint_branch"
+    if [ $? -eq 1 ]; then
+        # create a meta-information branch
+	git checkout --orphan $checkpoint_branch
+        # stage the requested files/directories
+	git rm -rfq `ls | grep -v meta`
+    else
+	git checkout $checkpoint_branch
     fi
 
-    # stage the requested files/directories
+    echo "kernel repository meta data base" >> README.txt
+    git add -f README.txt
+    git commit -s -m "meta: add README"
+    
+    # either we just created an orphan branch .. or it already
+    # existed. Either way, iterate the directories that should be added to
+    # the branch and add them.
     for d in $dirs_to_checkpoint; do       
-	git add $d
+	git add -f $d
 	if [ -f "$d/00-README" ]; then
 	    git commit -q -s -F "$d/00-README"  &> /dev/null
 	else
@@ -209,61 +181,14 @@ if [ -n "$checkpointing" ]; then
 	fi
     done
 
-    # special processing for internal compiled patch series
-    for i in $dirs_to_checkpoint; do
-	if [ -d $i ]; then
-	    # special_files=`find $i -name '*.o'`
-	    special_files=
-	    if [ -n "$special_files" ]; then
-		git add -f $special_files
-		git commit -q -s -m "checkpoint dir: $d" &> /dev/null
-	    else
-		(cd $i; 
-                 git add -f .;
-                 git add -f .*;
-                 git commit -q -s -m "checkpoint dir: $d" &> /dev/null)
-	    fi
-	fi
-    done
-
     if [ -z "$verbose" ]; then
 	q="-q"
     fi
 
-    # create the "checkpoint" branch, if not already present
-    git show-ref --quiet --verify -- "refs/heads/$checkpoint_branch"
+    # tag the branch so it can be found later
+    git show-ref --quiet --verify -- "refs/tags/checkpoint-$checkpoint_branch"
     if [ $? -eq 1 ]; then
-	echo "[INFO] creating $checkpoint_branch branch";
-	git branch -m $checkpoint_branch-temp $checkpoint_branch
 	git tag checkpoint-$checkpoint_branch
-    else
-	echo "INFO: existing checkpoint branch detected .. reusing"
-	if [ -n "$join_checkpoints" ]; then
-	    git show-ref --quiet --verify -- "refs/heads/$checkpoint_branch-temp"
-	    if [ $? -eq 0 ]; then
-		if [ -n "$verbose" ]; then
-		    echo "INFO: attempting to merge checkpoints"
-		fi
-		git checkout -q $checkpoint_branch
-		git merge $checkpoint_branch-temp
-		if [ $? -ne 0 ]; then
-		    echo ""
-		    echo "ERROR. Could not merge the checkpoint branches, they must be manually merged."
-		    echo ""
-		    echo "Once complete, git add the files and use kgit-checkpoint -c --continue to complete."
-		    echo "the operation"
-		    exit 1
-		fi
-		git branch -d $checkpoint_branch-temp
-		git tag -f checkpoint-$checkpoint_branch
-	    fi
-	else
-	    echo "INFO: checkpoint join wasn't selected, deleting existing checkpoint."
-	    echo "Your tree will be non-fastforward once complete"
-	    git branch -D $checkpoint_branch
-	    git branch -m $checkpoint_branch-temp $checkpoint_branch
-	    git tag -f checkpoint-$checkpoint_branch
-	fi
     fi
 
     # return to the current branch
@@ -285,23 +210,23 @@ else # restoring ...
      	exit 0
     fi
 
-    # checkpoint-<branch> is tagged once and then never changes.
-    # we considering everything from this tag to the HEAD of
-    # its branch part of the checkpoint
-    merge_base=`git merge-base $checkpoint_branch $base_branch`
-    meta_head=`git show-ref -h -s $checkpoint_branch`
-    # if merge_base and meta_head do NOT match, there are checkpoint commits
-
-    if [ "$merge_base" != "$meta_head" ]; then
-	# save the old branch
-	git checkout -q -b $checkpoint_branch-temp $checkpoint_branch
-	git reset --mixed $merge_base
-	git checkout -q $current_branch
-	git branch -D $checkpoint_branch-temp
-    else
-	echo "ERROR. No checkpoint commits detected, cannot restore"
-	exit 1
+    # checkpoint-<branch> is tagged once and then never changes.  we
+    # considering everything from this tag to the HEAD of its branch part of
+    # the checkpoint
+    merge_base=`git merge-base $checkpoint_branch master`
+    if [ -z "$merge_base" ]; then
+	# the branch was an orphan branch. So get the rev-list
+	merge_base=`git rev-list $checkpoint_branch -- | tail -1`
     fi
+
+    # save the old branch
+    git checkout -q -b $checkpoint_branch-temp $checkpoint_branch
+    git reset --mixed $merge_base
+
+    echo git reset --mixed $merge_base
+
+    git checkout -q $current_branch
+    git branch -D $checkpoint_branch-temp
 
     if [ "$checkpoint_branch" != "$current_branch" ]; then
 	git checkout -q $current_branch
