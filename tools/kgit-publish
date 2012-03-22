@@ -135,12 +135,6 @@ if [ ! -d "$dest" ] || [ -n "$force" ]; then
 	rm -rf "$dest"
     fi
 
-
-    if [ ! -d "$src.tmp" ]; then
-	echo "[INFO] making working copy of $src as $src.tmp"
-    fi
-
-
     if [ -d "$src/wrs" ]; then
 	meta_dir=wrs
 	checkpoint_branch=wrs_meta
@@ -149,15 +143,12 @@ if [ ! -d "$dest" ] || [ -n "$force" ]; then
 	checkpoint_branch=meta
     fi
 
-    git clone --bare $src $src.tmp
-    (
-       cd $src.tmp
-       git config core.bare false
-       mkdir .git
-       mv * .git
-       git checkout -f master
-    )
-    cp -r $src/meta $src.tmp
+    if [ ! -d "$src.tmp" ]; then
+	if [ -n "$verbose" ]; then
+	    echo "[INFO] making working copy of $src as $src.tmp"
+	fi
+	cp -r $src $src.tmp
+    fi
 
     # now we only operate on src.tmmp
     src=$src.tmp
@@ -168,6 +159,9 @@ if [ ! -d "$dest" ] || [ -n "$force" ]; then
     fi
     if [ -z "$x" ]; then
 	if [ -n "$auto" ]; then
+	    if [ -n "$verbose" ]; then
+		echo "[INFO] checkpointing repository"
+	    fi
 	    (cd $src; kgit checkpoint -b $checkpoint_branch -c)
 	    auto_checked=t
 	else
@@ -180,7 +174,7 @@ if [ ! -d "$dest" ] || [ -n "$force" ]; then
 	fi
     fi
     if [ -n "$verbose" ]; then
-	echo "[INFO] git clone --bare $ref $src $dest"
+	echo "[INFO] creating published repository $dest"
     fi
 
     git clone --bare $ref $src $dest
