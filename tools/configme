@@ -18,9 +18,9 @@
 # and then finally a .config, and optionally an audit of that
 # final .config
 
-# Assumes you have a "default_kernel" clone, non-bare, with
-# all BSPs/branches as local refs (i.e. not origin/*), i.e.
-# 	git clone --bare git://myserver/default_kernel linux-2.6
+# Assumes you have a kernel clone, non-bare, with all BSPs/branches
+# as local refs (i.e. not origin/*), i.e.
+# 	git clone --bare git://myserver/my_kernel linux-2.6
 # 	cd linux-2.6
 #	mkdir .git ; mv * .git
 #	git config core.bare false
@@ -30,14 +30,10 @@
 # Return values: zero if a ".config" was created, one otherwise.
 
 CURRENT=`git branch |grep \*|sed 's/^\* //'`
-if [ -d `pwd`/wrs/scripts ]; then
-	SCRIPT_DIR=`pwd`/wrs/scripts
-else
-    	SCRIPT_DIR=`pwd`/meta/scripts
-fi
+SCRIPT_DIR=`pwd`/meta/scripts
+
 PATH=$PATH:$SCRIPT_DIR
 QUICK=1
-META_DIR=meta
 
 usage()
 {
@@ -66,7 +62,6 @@ get_branch_name()
 # This is factored out into a function because for a given branch,
 # there may be more than one user (i.e. big endian, little endian,
 # or BSPs that use the same branch but differ only in kernel configs)
-# So for each branch, we loop over all "users" (i.e. scc leaf'ers).
 run_board_config()
 {
     # Can't set these until we've unwound the checkpoint and have wrs data.
@@ -85,17 +80,12 @@ run_board_config()
     if [ -z "$KTYPE" ]; then
 	KTYPE=`grep WRS_KERNEL $SCC | awk '{print $3}'`
     fi
-    # KTGT=$KPROFILE-$KTYPE
-    KTGT=$full_tgt
-    META=./$META_DIR/cfg/scratch/`basename $SCC .scc`-meta
-    META_ALT=./$META_DIR/cfg/scratch/$KTGT-meta
-    META_ALT_ALT=./$META_DIR/cfg/scratch/$KTGT-meta
-    
-    # Build system uses linux_BUILD=$(linux_SRC)-$(ktgt)-build
-    # with ktgt=$(kprofile)-$(ktype)
-    # and KERNEL_CONFIG=${kprofile}-${ktype}-config-${LINUX_KERNEL_VERSION}
+
+    META=./$META_DIR/meta-series
+    META_ALT=./$META_DIR/cfg/scratch/`basename $SCC .scc`-meta
+
     BUILD_DIR=$out_dir
-    CFGFILE=$KTGT-config-$KVER
+    CFGFILE=$machine-$target-config-$KVER
 
     if [ "x$KARCH" == "x" ] ; then
 	echo Couldnt determine architecture from file:
@@ -126,12 +116,6 @@ run_board_config()
 	fi
     fi
 
-    mkdir -p ./$META_DIR/cfg/$KTGT
-    if [ $? != 0 ]; then
-	echo Failed to mkdir ./$META_DIR/cfg/$KTGT for config data
-	return 1
-    fi
-
     if [ ! -f $META ]; then
 	if [ ! -f $META_ALT ]; then
 		echo Failed to find meta series $META or $META_ALT
@@ -148,6 +132,11 @@ run_board_config()
     fi
 
     KTGT=`get_branch_name $META`
+    mkdir -p ./$META_DIR/cfg/$KTGT
+    if [ $? != 0 ]; then
+	echo Failed to mkdir ./$META_DIR/cfg/$KTGT for config data
+	return 1
+    fi
 
     frags=`cat $META_DIR/cfg/$KTGT/config_frag.txt | sed 's%\(^.*$\)%'$META_DIR/cfg'\1%'`
     pre_config -l $META_DIR/cfg/$KTGT/ $frags > $META_DIR/cfg/$KTGT/config.log 2>&1
@@ -163,7 +152,7 @@ run_board_config()
     if [ $? != 0 ]; then
      	echo creation of pre-processed config data failed
      	return 1
-     fi
+    fi
 
     # break the merge log down into parts that can be processed later
     grep -A2 "^Value of" $META_DIR/cfg/$KTGT/merge_log.txt > $META_DIR/cfg/$KTGT/redefinition.txt
@@ -238,38 +227,16 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-# an explicit target to configure may have been passed 
-# (whatever is left over). If something wasn't passed, we configure
-# based on the current branch.
+# an explicit target to configure may have been passed (whatever is left
+# over). If something wasn't passed, we configure based on the current
+# branch.
 target=$1
 machine=$2
 if [ -z "$target" ]; then
-    target=$CURRENT
+    target=standard
 fi
 
-# we need to condition the branch. If it is in the form that
-# uses / for inheritance, special processing needs to be done.
-echo $target | grep -q "/"
-if [ $? -eq 0 ]; then
-    # remove trailing "/base" that won't be in the .scc files
-    # themselves
-    tgt=`echo $target | sed 's%/base$%%'`
-    # the parent branch is the second to last, i.e. standard/common_pc
-    # so we can reverse everything and take the second field
-    parent=`echo $tgt | rev | cut -d'/' -f2 | rev`
-    target=`echo $tgt | rev | cut -d'/' -f1 | rev`
-    if [ -z $out_dir ]; then
-	out_dir=$target-$parent
-    fi
-    full_tgt=$target-$parent
-else
-    if [ -z $out_dir ]; then
-	out_dir=$target
-    fi
-    parent=`echo $target | rev | cut -d'-' -f1 | rev`
-    full_tgt=$target
-fi
-
+META_DIR=meta
 if [ ! -d "meta" ]; then
     META_DIR=wrs
 fi
@@ -277,49 +244,44 @@ fi
 if [ -e $META_DIR/top_tgt ]; then
     SCC_LIST=`cat $META_DIR/top_tgt`
 else
-    echo "[INFO] Finding user(s) of target: $target with parent: $parent"
-    # Note the space and EOL anchor.  We want to find the SCC file where
-    # CURRENT is on the far RHS, i.e. the one that created the branch,
-    # and NOT some SCC file that uses the branch as a starting point
-    # There is an alternate target, where all _ have been replaced by -
-    alt_target=`echo $target | sed 's/_/.*/g'`
-    SCC_LIST=`grep -Rl -e 'scc_leaf.* '$alt_target'$' -e 'scc_leaf.* '$target'$' \
-            ./$META_DIR/cfg/kernel-*cache/bsp/ ./$META_DIR/cfg/scratch`
-    for s in $SCC_LIST; do 
-	found=`grep -E "scc_leaf.*$parent" $s`
-	if [ -n "$found" ] && [ -z "$found_scc" ]; then
-	    found_scc=$s
-	fi
-	if [ -n "$found" ]; then
-	    case `basename $s` in
-		$machine*) best_match=$s ;;
-                *) other_match=$s ;;                
-	    esac
-	fi
+    echo "[INFO] Finding machine description for $machine"
+
+    define_tgt1=$machine
+    define_tgt2=$target
+
+    sccs_that_define=`find $META_DIR/cfg -name '*.scc' \
+                        | xargs grep -l -e 'define.*' | sort | uniq`
+    for scc in $sccs_that_define; do
+    	score=0
+    	max_score=0
+    	for tgt in $define_tgt1 $define_tgt2 $define_tgt3; do
+    	    if [ -n "$tgt" ]; then
+    		max_score=`expr $max_score + 1`
+    		f=`grep -l -e 'define.* '$tgt'$' $scc`
+    		if [ -n "$f" ]; then
+    		    score=`expr $score + 1`
+    		fi
+    	    fi
+    	done
+	
+    	if [ $score -eq $max_score ]; then
+    	    found_scc="$found_scc $scc"
+    	fi
     done
-    if [ -n "$best_match" ]; then
-	SCC_LIST=$best_match
-    elif [ -n "$other_match" ]; then
-	SCC_LIST=$other_match
-    else
-	SCC_LIST=$found_scc
-    fi
+
+    SCC_LIST=$found_scc
 fi
 
 if [ -z "$SCC_LIST" ]; then
-	echo Error: No BSPs \(scc\) use branch $CURRENT as their endpoint.
+	echo "Error: No machine description found for $machine"
 	exit 1
 fi
 
 for SCC in $SCC_LIST ; do
-	if [ ! -f $SCC ] ; then
-		echo Couldnt find scc file $SCC for $CURRENT
-		exit 1
-	fi
-	echo "[INFO] Branch $CURRENT used by "`basename $SCC`
+	echo "[INFO] Configuring machine description: "`basename $SCC`
 	run_board_config
 	if [ $? != 0 ]; then
-		echo config of $CURRENT \(`basename $SCC`\) failed
+		echo config of $machine \(`basename $SCC`\) failed
 		exit 1
 	fi
 done
