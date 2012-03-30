@@ -213,10 +213,6 @@ check_branch() {
 		parent=`echo $ktgt | rev | cut -d'-' -f1 | rev`
 	    fi
 
-	    if [ "$parent" != "$CURRENT" ]; then
-		git checkout -b $ktgt $parent
-	    fi
-
 	    mkdir -p $meta_dir/cfg/scratch/obj
 	else
 	    # branch exists. Are we an 'external repo' ?
