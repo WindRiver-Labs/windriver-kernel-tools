@@ -176,7 +176,7 @@ split_command_line_objects() {
 		    ;;
 		*.cfg) migrate_cfg $v
 		    ;;
-		*.patch) migrate_patch $v
+		*.patch|*.diff) migrate_patch $v
 		    ;;
 		defconfig) migrate_cfg $v;;
 		*) ;;
