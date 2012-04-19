@@ -411,7 +411,7 @@ if [ -s $KCONF_DIR/missing_required.cfg ]; then
 	echo "         have a corresponding value present in the final \".config\" file."
 	echo "         This is a violation of the policy defined by the higher level config"
 	echo "The full list can be found in your workspace at:"
-	echo "$KCONF_DIR/missing_required.cfg | sed 's=^'$TOP_BUILD_DIR'/=   ='"
+	echo "$KCONF_DIR/missing_required.cfg" | sed 's=^'$TOP_BUILD_DIR'/=   ='
 	if [ -n "$required_is_error" ]; then
 	    exit 1
 	else
