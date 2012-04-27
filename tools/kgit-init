@@ -34,7 +34,7 @@ install_resources()
     #   guilt-*
     #   generate_cfg, kconf_check, configme
 
-    tools_list="kgit kgit-* guilt-* scc generate_cfg kconf_check configme patchme updateme creatme"
+    tools_list="kgit kgit-* guilt-* scc generate_cfg kconf_check configme patchme updateme createme"
 
     mkdir -p $meta_dir/scripts/
     for pattern in $tools_list; do
