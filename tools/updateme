@@ -31,7 +31,7 @@ cat << EOF
        ${ARCH}:    The kernel architecture of the machine. This is used to locate
                    default options/configuration.
        ${MACHINE}: The name of the machine. This is used to locate the machine
-                   description created via 'creatme'
+                   description created via 'createme'
        [ordered list of items]: A space separated list of .scc, .patch, .cfg or
                                 defconfig items to apply to the end of the 
                                 machine description.
