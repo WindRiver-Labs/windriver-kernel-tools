@@ -144,10 +144,12 @@ decheckpoint()
 	case `check_repo identify` in
 		meta-data)
 	       		repo=meta-data
-			# Is the meta-data merged out to the other branches. If so
-			# that means that we don't need to undo the checkpoint
+			# Is the meta-data merged out to the other branches? If so
+			# that means that we don't need to undo the checkpoint. We can tell
+			# by counting how many contain the meta data. If it's 2 or less, then
+			# we need to restore the checkpoint.
 			branch_count=`git branch --contains $meta_branch | wc -l`
-			if [ $branch_count -eq 1 ]; then
+			if [ $branch_count -le 2 ]; then
 				kgit-checkpoint -r
 			fi
 			;;
