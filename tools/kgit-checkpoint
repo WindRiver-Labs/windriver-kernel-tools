@@ -2,7 +2,7 @@
 
 #  (kgit-checkpoint), (checkpoint and restore for meta-information)
 
-#  Copyright (c) 2008-2010 Wind River Systems, Inc.
+#  Copyright (c) 2008-2012 Wind River Systems, Inc.
 
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License version 2 as
@@ -111,7 +111,7 @@ fi
 # save this so we can go back later ...
 current_branch=`get_current_git_branch`
 
-# The checkpoint tag tells us two things:
+# The (optional) checkpoint tag tells us two things:
 #  - the tree has been checkpointed (obviously)
 #  - the branch that contains the checkpoint
 # And it is of the format:
@@ -127,31 +127,33 @@ if [ -n "$check_refs" ]; then
     fi
 fi
 
-# we grab the entire 'meta' directory unless told otherwise
-git show $checkpoint_branch:wrs &> /dev/null
-if [ $? -eq 0 ]; then
-    meta_dir=wrs
-else
-    meta_dir=meta
-fi
-
-if [ -z "$files_to_checkpoint" ]; then
-    dirs_to_checkpoint="$meta_dir/cfg/kernel-*cache $meta_dir/cfg/scratch $meta_dir/patches $meta_dir/scripts $meta_dir"
-fi
-
 # allow a command line override
 if [ -n "$cmd_branch" ]; then
     checkpoint_branch=$cmd_branch
 fi
 
+# Check to see if the checkpoint branch contains a directory of the
+# same name. If it does, that's the base of what we'll capture in the
+# checkpoint. If it doesn't, fallback to the 'meta' default.
+meta_dir=meta
+git show $checkpoint_branch:$checkpoint_branch &> /dev/null
+if [ $? -eq 0 ]; then
+    meta_dir=$checkpoint_branch
+fi
+
 if [ -z "$checkpoint_branch" ]; then
-    echo "ERROR: an existing checkpoint branch was not detected and no command line branch provided"
+    echo "[ERROR]: an existing checkpoint branch was not detected and no command line branch provided"
     exit 1
+fi
+
+if [ -z "$files_to_checkpoint" ]; then
+    dirs_to_checkpoint="$meta_dir/cfg/kernel-*cache $meta_dir/cfg/scratch \
+                        $meta_dir/patches $meta_dir/scripts $meta_dir"
 fi
 
 if [ -n "$checkpointing" ]; then    
     if [ -n "$verbose" ]; then
-	echo "Creating checkpoint on branch $checkpoint_branch"
+	echo "[INFO]: Creating checkpoint on branch $checkpoint_branch"
     fi
 
     # if the branch doesn't already exist. Create it as an orphan.
@@ -199,38 +201,34 @@ if [ -n "$checkpointing" ]; then
 else # restoring ...
 
     if [ -n "$verbose" ]; then
-	echo "Restoring checkpoint from branch $checkpoint_branch"
+	echo "[INFO]: Restoring checkpoint from branch $checkpoint_branch"
     fi
 
     # check if '$meta_dir' is tracked or not. If it is untracked, we don't
     # have anything to do.
     x=`git ls-files -o $meta_dir | head -n1`
     if [ -n "$x" ]; then
-     	echo "checkpoint is already restored, nothing to do"
+     	echo "[INFO]: checkpoint is already restored, nothing to do"
      	exit 0
     fi
 
     # checkpoint-<branch> is tagged once and then never changes.  we
     # considering everything from this tag to the HEAD of its branch part of
-    # the checkpoint
+    # the checkpoint. If the branch was an orphan branch, the merge_base will
+    # be zero. In that case, we just get all commits on the branch via git
+    # rev-list
     merge_base=`git merge-base $checkpoint_branch master`
     if [ -z "$merge_base" ]; then
-	# the branch was an orphan branch. So get the rev-list
 	merge_base=`git rev-list $checkpoint_branch -- | tail -1`
     fi
 
-    # save the old branch
+    # save the old branch, and make the data untracked.
     git checkout -q -b $checkpoint_branch-temp $checkpoint_branch
     git reset --mixed $merge_base
 
-    echo git reset --mixed $merge_base
-
+    # delete our working branch, and return to the original one
     git checkout -q $current_branch
     git branch -D $checkpoint_branch-temp
-
-    if [ "$checkpoint_branch" != "$current_branch" ]; then
-	git checkout -q $current_branch
-    fi
 fi
 
 
