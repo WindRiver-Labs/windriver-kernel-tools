@@ -129,7 +129,7 @@ else
     active_patching=
 fi
 
-# Each BSP gets one of these in wrs/cfg/<BSP>/$fraglist
+# Each BSP gets one of these in $meta/cfg/<BSP>/$fraglist
 fraglist="config_frag.txt"
 
 # yes this is a no-op for now, leaving it in in case
@@ -305,7 +305,7 @@ track_branch()
 }
 
 # this is responsible for migrating the data from the kernel-cache layer
-# into the wrs/ dir. That is it -- no processing takes place here.
+# into the $meta dir. That is it -- no processing takes place here.
 do_kconf()
 {
     local _cfg_file_dir=`dirname $1`
@@ -1075,13 +1075,10 @@ if [ -n "$_rc_file" ] && [ -e "$_rc_file" ]; then
     done
 fi
 
-if [ -d "wrs" ]; then
-    meta_dir_name=wrs
-    content_branch="wrs_base"
-else
+meta_dir_name=$KMETA
+show_inheritance_in_branches=t
+if [ -z "$meta_dir" ]; then
     meta_dir_name=meta
-    content_branch="base"
-    show_inheritance_in_branches=t
 fi
 
 meta_dir=`find_dir $meta_dir_name`
@@ -1185,9 +1182,9 @@ fi
 
 #
 # This option (re)generates the kconfig. IMPORTANT:  This is working from
-# the files as they are found in the wrs/ dir now -- the do_kconf() that
+# the files as they are found in the $meta dir now -- the do_kconf() that
 # gets run during the initial pass over from --init puts the files from
-# the kernel-cache into the wrs/ dir.
+# the kernel-cache into the $meta dir.
 #
 if [ -n "$_kconf" ]; then
 	_meta_series=$meta_dir/meta-series

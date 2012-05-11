@@ -2,7 +2,7 @@
 
 # "updateme" script.
 
-#  Copyright (c) 2010-2011 Wind River Systems, Inc.
+#  Copyright (c) 2010-2012 Wind River Systems, Inc.
 
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License version 2 as
@@ -39,10 +39,9 @@ cat << EOF
 EOF
 }
 
-if [ -d "wrs" ]; then
-    meta_dir=wrs
-else
-    meta_dir=meta
+meta_dir=$KMETA
+if [ -z "$meta_dir" ]; then
+	meta_dir=meta
 fi
 
 if [ -z "$1" ]; then

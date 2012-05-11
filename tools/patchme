@@ -30,10 +30,9 @@ cat << EOF
 EOF
 }
 
-if [ -d "wrs" ]; then
-    meta_dir=wrs
-else
-    meta_dir=meta
+meta_dir=$KMETA
+if [ -z "$meta_dir" ]; then
+	meta_dir=meta
 fi
 
 if [ -z "$1" ]; then

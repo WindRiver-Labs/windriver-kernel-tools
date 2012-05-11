@@ -2,7 +2,7 @@
 
 #  (scc), (series & configuration compiler)
 
-#  Copyright (c) 2008-2010 Wind River Systems, Inc.
+#  Copyright (c) 2008-2012 Wind River Systems, Inc.
 
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License version 2 as
@@ -596,7 +596,7 @@ scc_stage()
 	git show-ref --quiet --verify -- "refs/heads/$src_branch-merge";
 	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"if [ \\\$? -eq 1 ]; then\")"
 	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"  echo \"WARNING: src tree $src_tree was not found, creating a dummy branch\"\")"
-	git branch $src_branch-merge wrs_base
+	git branch $src_branch-merge master
 	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"fi\")"
     else
 	git show-ref --quiet --verify -- "refs/heads/$src_branch-merge";
@@ -1816,7 +1816,7 @@ dump_header()
     _dump ""
     _dump "output=\"\""
     _dump "export patch_prefix=patches"
-    _dump "export wrs_dir=wrs"
+    _dump "export meta_dir=$meta_dir"
 
     _dump "$dump_vars"
 }
@@ -1827,6 +1827,11 @@ process_command_line "$@"
 if [ -n "$version_dump" ]; then
     echo "scc version: $version"
     exit 0
+fi
+
+meta_dir=$KMETA
+if [ -z "$meta_dir" ]; then
+	meta_dir=meta
 fi
 
 ##

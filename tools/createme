@@ -173,7 +173,10 @@ decheckpoint()
 	# first check to see if there's a directory of the same name
 	# as the meta branch. That's the first choice. If it doesn't exist
 	# the default is a directory called 'meta'
-	meta_dir=meta
+	meta_dir=$KMETA
+	if [ -z "$meta_dir" ]; then
+	    meta_dir=meta
+	fi
 	if [ -d $meta_branch ]; then
 		meta_dir=$meta_branch
 	fi

@@ -41,6 +41,12 @@ cat <<EOF
    -r: remote destination for the published repository. changes
        will be pushed to this destination if provided. 
    --reference: reference repo
+
+   Environment variables:
+      
+      KMETA: defines the meta directory and branch. If not set, the
+             default is meta/meta
+
    -h: Help
    -v: Verbose
 
@@ -135,10 +141,9 @@ if [ ! -d "$dest" ] || [ -n "$force" ]; then
 	rm -rf "$dest"
     fi
 
-    if [ -d "$src/wrs" ]; then
-	meta_dir=wrs
-	checkpoint_branch=wrs_meta
-    else
+    meta_dir=$KMETA
+    checkpoint_branch=$KMETA
+    if [ -z "$meta_dir" ]; then
 	meta_dir=meta
 	checkpoint_branch=meta
     fi

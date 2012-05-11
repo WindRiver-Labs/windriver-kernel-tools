@@ -24,7 +24,7 @@
 # 	cd linux-2.6
 #	mkdir .git ; mv * .git
 #	git config core.bare false
-#	git checkout -f wrs_meta
+#	git checkout -f meta
 # Also assumes that current dir is in this linux git repo.
 
 # Return values: zero if a ".config" was created, one otherwise.
@@ -64,22 +64,13 @@ get_branch_name()
 # or BSPs that use the same branch but differ only in kernel configs)
 run_board_config()
 {
-    # Can't set these until we've unwound the checkpoint and have wrs data.
+    # Can't set these until we've unwound the checkpoint and have meta data.
     KVER=`cat ./$META_DIR/cfg/kernel-*cache/kver|sed 's/^v//'`
 
     # Look for standard defines, with compatibility fallbacks
     KARCH=`grep KARCH $SCC | awk '{print $3}'`
-    if [ -z "$KARCH" ]; then
-	KARCH=`grep WRS_ARCH $SCC | awk '{print $3}'`
-    fi
     KPROFILE=`grep KMACHINE $SCC | awk '{print $3}'`
-    if [ -z "$KPROFILE" ]; then
-	KPROFILE=`grep WRS_BOARD $SCC | awk '{print $3}'`
-    fi
     KTYPE=`grep KTYPE $SCC | awk '{print $3}'`
-    if [ -z "$KTYPE" ]; then
-	KTYPE=`grep WRS_KERNEL $SCC | awk '{print $3}'`
-    fi
 
     META=./$META_DIR/meta-series
     META_ALT=./$META_DIR/cfg/scratch/`basename $SCC .scc`-meta
@@ -239,9 +230,9 @@ if [ -z "$target" ]; then
     target=standard
 fi
 
-META_DIR=meta
-if [ ! -d "meta" ]; then
-    META_DIR=wrs
+META_DIR=$KMETA
+if [ -z "$META_DIR" ]; then
+	META_DIR=meta
 fi
 
 if [ -e $META_DIR/top_tgt ]; then
