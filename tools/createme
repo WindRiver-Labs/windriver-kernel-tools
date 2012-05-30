@@ -177,7 +177,7 @@ decheckpoint()
 	if [ -z "$meta_dir" ]; then
 	    meta_dir=meta
 	fi
-	if [ -d $meta_branch ]; then
+	if [ -n "$meta_branch" ] && [ -d "$meta_branch" ]; then
 		meta_dir=$meta_branch
 	fi
 }
