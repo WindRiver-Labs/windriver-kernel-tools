@@ -286,7 +286,7 @@ migrate_feature() {
 	# we should *not* auto-add a .scc file that defines
 	# KMACHINE, etc. These are leaf nodes that should be
 	# explicitly requested.
-	grep -q KMACHINE $feat
+	grep -q -E "^.*define.*KMACHINE" $feat
 	if [ $? -ne 0 ]; then
 		# add it to the features to be built into the meta-series
 		extra_features="$extra_features $featname"
