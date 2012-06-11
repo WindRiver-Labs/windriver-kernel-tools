@@ -231,6 +231,7 @@ while [ $# -gt 0 ]; do
                 exit;
                 ;;
         -*)   
+                echo Invalid arg \"$1\".
                 usage
                 exit
                ;;
@@ -242,6 +243,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$1" ]; then
+    echo no args given.  Try \"-h\".
     usage
     exit
 fi
