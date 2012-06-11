@@ -346,6 +346,8 @@ if [ -z "$resume" ]; then
 	if [ -d $dir ]; then
 	    if [ -e $dir/kver ]; then
 		base_ver=`cat $dir/kver`
+            else
+                echo WARNING: no file $dir/kver to set base version
 	    fi
 
 	    abs_dir=$(cd $dir; pwd)
@@ -363,6 +365,8 @@ if [ -z "$resume" ]; then
 
 	    new_inc_dirs="$new_inc_dirs -I `cd $output/$top_meta_dir/cfg/$last_dir; pwd`"
 	    new_search_dirs="$new_search_dirs `cd $output/$top_meta_dir/cfg/$last_dir; pwd`"
+        else
+            echo WARNING: search dir $dir does not exist
 	fi
     done
 else
@@ -377,6 +381,8 @@ else
 
     if [ -e $d/kver ]; then
 	base_ver=`cat $d/kver`
+    else
+        echo WARNING: no file $d/kver to set base version
     fi
 fi
 inc_dirs=$new_inc_dirs
