@@ -93,6 +93,11 @@ run_board_config()
 	KARCH=mips
     fi
 
+    if [ -z "$BUILD_DIR" ]; then
+	echo No build dir specified.  Use \"-o\" to specify one.
+	return 1
+    fi
+
     if [ -z "$reconfig" ] && [ -d $BUILD_DIR ]; then
 	echo Dir $BUILD_DIR already exists, remove/move
 	echo it if you want to re-run this configuration utility.
