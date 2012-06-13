@@ -30,7 +30,7 @@
 # Return values: zero if a ".config" was created, one otherwise.
 
 CURRENT=`git branch |grep \*|sed 's/^\* //'`
-SCRIPT_DIR=`pwd`/meta/scripts
+SCRIPT_DIR=`dirname $0`
 
 PATH=$PATH:$SCRIPT_DIR
 QUICK=1
