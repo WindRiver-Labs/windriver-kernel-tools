@@ -269,15 +269,7 @@ cat  <<'EOF';
                    of processing shouldn't be used and a feature must be 
                    included 'after' feature 'feat name'. Include paths are
                    relative to the root of the directories passed via -I
-        o exclude: Indicates that a particular feature should *not* be included
-                   even if an 'include' directive is found. The exclude must be
-                   issued before the include is processed.
-        o check_board: Tests if a particular board is being patched.
-                       This allows a feature to change the patches
-                       on a board specific basis. Logical actions should
-                       be based on the return value "$?". 1 idicates 
-                       that the current board matches the test value, 0
-                       means that a different board is being patched.
+
 EOF
 else
     cat  <<'EOF';
@@ -413,6 +405,9 @@ set_kernel_version()
 ##    arg1: the board to test
 ## return: 0 board is present
 ##         1 board is not present
+##
+## Note: this is depreciated. if [ "$KMACHINE" ] should be used
+##       instead
 check_board()
 {
     echo $KMACHINE | grep -q $1
@@ -426,34 +421,12 @@ scc_strict()
     scc_strict=$1
 }
 
-## used in the feature scripts
-## $1 is the patch to override
+# No longer supported. This was used to override an existing
+# patch with a new one. This leads to dynamic branching in a 
+# git tree, which is considered bad.
 override()
 {
-    # takes a patch and puts a transform to wait for another patch of the
-    # same name and replace it with this one.
-    if [ "$current_patch_dir" != "$current_feature_dir" ]; then
-	tmp=$current_feature_dir/$current_patch_dir;
-    else
-	tmp=$current_patch_dir;
-    fi
-
-    # if the passed patch ($1) has a directory, we need to 
-    # pull it out of the one we just constructed to avoid a
-    # a duplicate (and invalid) in the replacement patch name.
-    patch_dir=$(dirname $1);
-    if [ -n "$patch_dir" ] && [ "$patch_dir" != "." ]; then
-	tmp=$(echo $tmp | sed s%$patch_dir%%);
-    fi;
-    tmp=$tmp/$1;    
-
-    if [ "$last_cmd" == "patch" ]; then
-        # there was an open command replacement, let's close it
-        _dump '`'
-    fi
-    _dump "   _cmds=\$(echo \"\$_cmds\" | sed s%^.*$1$%$tmp%);"
-
-    last_cmd=override
+    true
 }
 
 # prevent a future include of a feature from doing anything
@@ -942,158 +915,28 @@ exclude()
     exclude_feature $fname
 }
 
+# patch triggers are no longer supported. In a git context, they need
+# to trigger dynamic branching, which is complex and can end up with
+# the system not building the branch with the proper changes.
 patch_trigger()
 {
-    type=$1
-    action=$2
-    tgt_patch=$3
-    extra=$4
-    archs=""
-
-    #echo "patch_trigger: type $1, action: $2, tgt: $3 feature: $current_feature";
-
-    arch_sub_type=${type##arch:*}
-    plat_sub_type=${type##plat:*}
-    if [ "$arch_sub_type" == "" ] && [ "$plat_sub_type" == "" ]; then
-        # this is an error. you have to have arch: or plat:
-        return
-    fi
-
-    arch_regex=""
-    plat_regex=""
-    if [ "$arch_sub_type" == "" ]; then
-        # we have a arch:blah
-        arch_sub_type=${type#arch:*}
-        archs=$(echo $arch_sub_type | sed 's/,/ /g')
-        if [ "$archs" == "all" ]; then
-            arch_regex=all
-        else
-            arch_regex=$(echo "$archs" | sed 's/ /_/g')
-        fi
-    fi
-    if [ "$plat_sub_type" == "" ]; then
-        # we have a plat:blah
-        plat_sub_type=${type#plat:*};
-        plats=$(echo $plat_sub_type | sed 's/,/ /g')
-        if [ "$plats" == "all" ]; then
-            plat_regex=all
-        else
-            plat_regex=$(echo "$plats" | sed 's/ /_/g')
-        fi
-    fi
-
-    if [ "$action" == "ctx_mod" ]; then
-        ## was it a arch or platform trigger ?
-        if [ -n "$arch_regex" ]; then
-            do_ctx_mod $arch_regex "" $tgt_patch $current_feature
-        else
-            do_ctx_mod "" $plat_regex $tgt_patch $current_feature
-        fi
-    elif [ "$action" == "exclude" ]; then
-        if [ -n "$arch_regex" ]; then
-            do_exclude "$arch_regex" "" "$tgt_patch"
-        else
-            do_exclude "" "$plat_regex" "$tgt_patch"
-        fi
-    elif [ "$action" == "include" ]; then
-        if [ -n "$arch_regex" ]; then
-            do_include "$arch_regex" "" "$tgt_patch"
-        else
-            do_include "" "$plat_regex" "$tgt_patch"
-        fi
-    elif [ "$action" == "transform" ]; then
-        if [ -n "$arch_regex" ]; then
-            do_transform "$arch_regex" "" "$tgt_patch"
-        else
-            do_transform "" "$plat_regex" "$tgt_patch"
-        fi
-    fi
-
-    last_cmd=patch_trigger
+    true
 }
 
+# ctx mods are no longer supported. In a git context, they need
+# to trigger dynamic branching, which is complex and can end up with
+# the system not building the branch with the proper changes.
 do_ctx_mod()
 {
-    archs=$1
-    plats=$2
-    base_patch=$3
-    active_feature=$4
-
-    # echo "#    do_ctx_mod: arch:$archs,plat:$plat,patch:$base_patch,feature:$active_feature";
-
-    if [ "$archs" == "all" ] || [ "$plats" == "all" ]; then
-        out_name="$base_patch.$active_feature"
-    fi
-    if [ -n "$archs" ]; then
-        if [ "$archs" != "all" ]; then
-            out_name="$base_patch.$archs"
-        fi
-    elif [ -n "$plats" ]; then
-        if [ "$plats" != "all" ]; then
-            out_name="$base_patch.$plats"
-        fi
-    fi
-
-    force_name=`_strip_ext $base_patch .patch`
-
-    # there was an open command replacement, let's close it
-    if [ "$last_cmd" == "patch" ]; then
-        _dump '`;'
-    fi;
-
-    work_dir=$current_patch_dir
-    if [ "$archs" == "all" ] || [ "$plats" == "all" ]; then
-        _dump "   _cmds=\$(echo \"\$_cmds\" | sed 's%^.*$base_patch$%\# _force_branch $active_feature-$force_name\n\# _patch $work_dir/$out_name%');";
-	_dump "   _potential_auto_branch=$force_name"
-    else
-        # TODO: these can be lists of plats, or archs ... could loop
-        if [ -n "$plats" ]; then
-            # platform specific test and output
-            _dump "   if [ \"\$PLATFORM\" == \"$plats\" ]; then "
-            _dump "      _cmds=\$(echo \"\$_cmds\" | sed 's%^.*$base_patch$%\# _force_branch $active_feature-$force_name\n\# _patch $work_dir/$out_name%');"
-	    _dump "      _potential_auto_branch=$force_name"
-            _dump "   fi"
-        fi;
-        if [ -n "$archs" ]; then
-            _dump "   if [ \"\$KERNEL_ARCH\" == \"$archs\" ]; then ";
-            _dump "      _cmds=\$(echo \"\$_cmds\" | sed 's%^.*$base_patch$%\# _force_branch $active_feature-$force_name\n\# _patch $work_dir/$out_name%');";
-	    _dump "      _potential_auto_branch=$force_name"
-            _dump "   fi"
-        fi
-    fi;
+    true
 }
 
+# exclusions are no longer supported. In a git context, they need
+# to trigger dynamic branching, which is complex and can end up with
+# the system not building the branch with the proper changes.
 do_exclude()
 {
-    archs=$1
-    plats=$2
-    tgt_patch=$3
-
-    # echo "#    do_exclude: arch:$archs,plat:$plat,patch:$tgt_patch";
-
-    # there was an open command replacement, let's close it
-    if [ "$last_cmd" == "patch" ]; then
-        _dump '`;'
-    fi;
-
-    force_name=`_strip_ext $tgt_patch .patch`
-
-    if [ "$archs" == "all" ] || [ "$plats" == "all" ]; then
-        _dump "   _cmds=\$(echo \"\$_cmds\" | sed \"s%^.*$tgt_patch$%\# _force_branch $current_feature-$force_name\n%\");";
-	_dump "   _potential_auto_branch=$force_name"
-    else
-        if [ -n "$archs" ]; then
-            _dump "   if [ \"\$KERNEL_ARCH\" == \"$archs\" ]; then ";
-            _dump "      _cmds=\$(echo \"\$_cmds\" | sed \"s%^.*$tgt_patch$%\# _force_branch $current_feature-$force_name\n%\");";
-	    _dump "      _potential_auto_branch=$force_name"
-            _dump "   fi"
-        elif [ -n "$plats" ]; then
-            _dump "   if [ \"\$PLATFORM\" == \"$plats\" ]; then ";
-            _dump "      _cmds=\$(echo \"\$_cmds\" | sed \"s%^.*$tgt_patch$%\# _force_branch $current_feature-$force_name\n%\");";
-	    _dump "      _potential_auto_branch=$force_name"
-            _dump "   fi"
-        fi
-    fi
+    true
 }
 
 do_include()
