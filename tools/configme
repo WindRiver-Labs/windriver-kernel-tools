@@ -52,8 +52,6 @@ exit 1
 
 get_branch_name()
 {
-    _meta_series=$1
-
     branchname=`git branch |grep \*|sed 's/^\* //'| sed 's%/base$%%'`
 
     echo $branchname
