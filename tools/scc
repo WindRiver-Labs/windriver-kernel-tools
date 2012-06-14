@@ -1458,23 +1458,15 @@ compile_files()
 			s=`search_include_paths $s`
 		    fi
 		    current_feature_dir=$(dirname $s)
-                    # we run a limited shell, with only the functions defined
-                    # that can cause a file to be included. This lets us
-                    # build the list of files to be compiled.
-		    z=$( scc_leaf()
-		         {
-			     files="$files $1"
-			 }
-		   
-			 include()
-			 {
-			     files="$files $1"
-			 } 
-		   
-			 . $s > /dev/null
-		   
-			 echo "$files"
-		    )
+
+		    # generate the list of files that need to be compiled. 
+		    # We do that by looking for any commands in a given file
+		    # that can trigger another file to be build. Which currently
+		    # is only 'include' (scc_leaf is depreciated)
+		    z=
+		    for q in `cat $s | grep -E '^[[:space:]]*include' | awk '{print $2}'` ; do
+			 z=`echo $z $q`
+		    done
 
 		    abs=
 		    for t in $z; do
