@@ -69,7 +69,6 @@ run_board_config()
 
     # Look for standard defines, with compatibility fallbacks
     KARCH=`grep KARCH $SCC | awk '{print $3}'`
-    KPROFILE=`grep KMACHINE $SCC | awk '{print $3}'`
     KTYPE=`grep KTYPE $SCC | awk '{print $3}'`
 
     META=./$META_DIR/meta-series
