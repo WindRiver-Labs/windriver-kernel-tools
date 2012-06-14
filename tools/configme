@@ -76,6 +76,12 @@ run_board_config()
     META_ALT=./$META_DIR/cfg/scratch/`basename $SCC .scc`-meta
 
     BUILD_DIR=$out_dir
+
+    if [ -z "$machine" ]; then
+	echo Error: machine is undefined
+	return 1
+    fi
+
     CFGFILE=$machine-$target-config-$KVER
 
     if [ "x$KARCH" == "x" ] ; then
