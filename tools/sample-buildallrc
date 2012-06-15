@@ -18,6 +18,9 @@ TREE=git://git.yoctoproject.org/linux-yocto-3.4
 # an existing git repo on disk to save cloning a gig of shared objects.
 REFERENCE=~/git/linux
 
+# Set this if you want to randomize builds instead of alphabetical order.
+# RANDOMIZE=yes
+
 # Sane defaults, based on what yocto/poky generates in the sysroot.
 PPC_CROSS_COMPILE=powerpc-poky-linux-
 MIPS_CROSS_COMPILE=mips-poky-linux-

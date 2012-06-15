@@ -299,6 +299,12 @@ for i in `grep -Rl '^define KMACHINE' meta/cfg/kernel-cache` ; do
 	echo $KMACHINE $KTYPE $KARCH $META $BRANCH $SCC >> $META_LIST
 done
 
+if [ ! -z "$RANDOMIZE" ]; then
+	mv $META_LIST $META_LIST~
+	sort -R < $META_LIST~ > $META_LIST
+	rm $META_LIST~
+fi
+
 # Move off meta branch before making meta content become untracked
 git checkout -f standard/base 2>/dev/null
 if [ $? != 0 ]; then
@@ -360,6 +366,7 @@ for i in `cat $META_LIST| awk '{print $6}'` ; do
 	fi
 	rm -f error.log
 done
+rm $META_LIST
 
 cd ..
 
