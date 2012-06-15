@@ -225,6 +225,11 @@ get_branch()
 
 ######################### start #####################
 
+PASS_CFG=0
+FAIL_CFG=0
+PASS_BUILD=0
+FAIL_BUILD=0
+
 which mkimage > /dev/null 2>&1
 if [ $? != 0 ]; then
 	echo Error -- you dont have a mkimage in your path, needed for
@@ -320,24 +325,28 @@ for i in `cat $META_LIST| awk '{print $6}'` ; do
 	$CONFIGME -o ../$i $KTYPE $MACHINE > cfg.log 2>&1
 	if [ $? != 0 ]; then
 		echo Configuration of $i failed
-		mv cfg.log ../0-FAIL-cfg-$i.log
+		mv cfg.log $BUILD_DIR
+		touch $BUILD_DIR/00-FAIL
+		FAIL_CFG=$[$FAIL_CFG + 1]
 		continue
 	fi
 
+	PASS_CFG=$[$PASS_CFG + 1]
 	mv cfg.log $BUILD_DIR
 
 	echo -n "Building $BRANCH for $i, status: "
 	build_branch > error.log 2>&1
 	if [ $? != 0 ]; then
 		echo -n FAILED.
-		if [ -f $BUILD_DIR/build.log ]; then
-			mv $BUILD_DIR/build.log ../0-FAIL-build-$i
-		else
-			mv error.log ../0-FAIL-build-$i
+		touch $BUILD_DIR/00-FAIL
+		FAIL_BUILD=$[$FAIL_BUILD + 1]
+		if [ ! -f $BUILD_DIR/build.log ]; then
+			mv error.log $BUILD_DIR/build.log
 		fi
 	else
 		echo -n passed.
-		mv $BUILD_DIR/build.log ../0-PASS-build-$i
+		touch $BUILD_DIR/00-PASS
+		PASS_BUILD=$[$PASS_BUILD + 1]
 	fi
 	if [ -f time.log ]; then
 		echo " (`cat time.log`)"
@@ -354,12 +363,7 @@ done
 
 cd ..
 
-PASS_CFG=`ls -1 0-PASS-cfg-* 2>/dev/null |wc -l`
-FAIL_CFG=`ls -1 0-FAIL-cfg-* 2>/dev/null |wc -l`
 TOTAL_CFG=`expr $PASS_CFG + $FAIL_CFG`
-
-PASS_BUILD=`ls -1 0-PASS-build-* 2>/dev/null |wc -l`
-FAIL_BUILD=`ls -1 0-FAIL-build-* 2>/dev/null |wc -l`
 TOTAL_BUILD=`expr $PASS_BUILD + $FAIL_BUILD`
 
 echo ========================= Build Summary ============================
@@ -369,7 +373,7 @@ echo ====================================================================
 
 RET=`expr $FAIL_CFG + $FAIL_BUILD`
 if [ $RET != "0" ];then
-	echo Do a \"ls \*FAIL\*\" for more details.
+	echo Do a \"ls \*\/\*FAIL\*\" for more details.
 fi
 exit $RET
 
