@@ -319,6 +319,14 @@ for i in `cat $META_LIST| awk '{print $6}'` ; do
 	ARCH=`grep $i $META_LIST | awk '{print $3}'`
 	KTYPE=`grep $i $META_LIST | awk '{print $2}'`
 
+	if [ ! -z "$MAX_BUILDS" ]; then
+		TOTAL_BUILD=`expr $PASS_BUILD + $FAIL_BUILD`
+		if [ $TOTAL_BUILD -eq $MAX_BUILDS ]; then
+			echo MAX_BUILDS value of $MAX_BUILDS reached, exiting.
+			break
+		fi
+	fi
+
 	git checkout -f $BRANCH 2>/dev/null
 	if [ $? != 0 ]; then
 		echo fatal: checkout of $BRANCH failed

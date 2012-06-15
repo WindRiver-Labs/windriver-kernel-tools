@@ -21,6 +21,9 @@ REFERENCE=~/git/linux
 # Set this if you want to randomize builds instead of alphabetical order.
 # RANDOMIZE=yes
 
+# Set this if you want to limit the total number of builds.
+# MAX_BUILDS=5
+
 # Sane defaults, based on what yocto/poky generates in the sysroot.
 PPC_CROSS_COMPILE=powerpc-poky-linux-
 MIPS_CROSS_COMPILE=mips-poky-linux-
