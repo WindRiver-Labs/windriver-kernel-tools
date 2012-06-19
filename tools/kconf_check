@@ -16,26 +16,19 @@
 # and whether what you asked for is what you got.
 
 KERNEL_CONFIG=$1
-TOP_BUILD_DIR=$2
+META=$2
 LINUX_SRC=$3
 LINUX_BUILD=$4
-BRANCH=$5
 
 # For consistent behaviour with "grep -w"
 LC_ALL=C
 export LC_ALL
 
-meta_dir=meta
-if [ -d $TOP_BUILD_DIR ]; then
-	META_DIR=$LINUX_SRC/$meta_dir
-else
-	TOP_BUILD_DIR=`pwd`
-	META_DIR=`pwd`/$meta_dir
-fi
+KTYPE=`grep '^# _define KTYPE'    $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+KMACH=`grep '^# _define KMACHINE' $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
 
-# remove trailing "/base" that won't be in the .scc files themselves
-BRANCH=`echo $BRANCH | sed 's%/base$%%'`
-KCONF_DIR=$META_DIR/cfg/$BRANCH
+META_DIR=`dirname $META`
+KCONF_DIR=$META_DIR/cfg/$KTYPE/$KMACH
 
 # Note: these 4 files below are created by generate_cfg.
 # All known hardware related Kconfig* files
@@ -65,11 +58,9 @@ KCONF_FRAG_ERRS=$KCONF_DIR/fragment_errors.txt
 KCONF_REDFINED_AS_BOARD_SPECIFIC=$KCONF_DIR/redefined_as_board_specific.txt
 
 #echo KERNEL_CONFIG: $KERNEL_CONFIG
-#echo TOP_BUILD_DIR: $TOP_BUILD_DIR
 #echo LINUX_SRC: $LINUX_SRC
 #echo LINUX_BUILD: $LINUX_BUILD
 #echo KCONF_DIR: $KCONF_DIR
-#echo BRANCH: $BRANCH
 
 # Actual list of existing config fragments that are hardware.
 HDW_CFGS=$KCONF_DIR/hdw_frags.txt
@@ -262,8 +253,8 @@ if [ -s $KCONF_DIR/invalid.cfg ]; then
 	OPT_COUNT=`wc -l $KCONF_DIR/invalid.cfg | awk '{print $1}'`
 	echo This BSP sets $OPT_COUNT invalid/obsolete kernel options.
 	echo These config options are not offered anywhere within this kernel.
-	echo The full list can be found in your workspace at:
-	echo $KCONF_DIR/invalid.cfg | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo The full list can be found in your kernel src dir at:
+	echo $KCONF_DIR/invalid.cfg | sed 's=^'$LINUX_SRC'/=   ='
 	echo
 fi
 
@@ -287,8 +278,8 @@ done
 if [ -s $KCONF_DIR/specified_non_hdw.cfg ]; then
 	OPT_COUNT=`wc -l $KCONF_DIR/specified_non_hdw.cfg | awk '{print $1}'`
 	echo This BSP sets $OPT_COUNT kernel options that are possibly non-hardware related.
-	echo The full list can be found in your workspace at:
-	echo $KCONF_DIR/specified_non_hdw.cfg | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo The full list can be found in your kernel src dir at:
+	echo $KCONF_DIR/specified_non_hdw.cfg | sed 's=^'$LINUX_SRC'/=   ='
 	echo
 fi
 
@@ -360,16 +351,16 @@ done
 if [ -s $KCONF_FRAG_ERRS ]; then
 	OPT_COUNT=`cat $KCONF_FRAG_ERRS |grep Warning: | wc -l | awk '{print $1}'`
 	echo There were $OPT_COUNT instances of config fragment errors.
-	echo The full list can be found in your workspace at:
-	echo $KCONF_FRAG_ERRS | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo The full list can be found in your kernel src dir at:
+	echo $KCONF_FRAG_ERRS | sed 's=^'$LINUX_SRC'/=   ='
 	echo
 fi
 if [ -n "$report_all_override_flag" ] && [ -s $KCONF_OVERRIDE ]; then
 	OPT_COUNT=`cat $KCONF_OVERRIDE |grep Value | wc -l | awk '{print $1}'`
 	echo There were $OPT_COUNT kernel config options redefined during processing this BSP.
 	echo These config options are defined in more than one config fragment.
-	echo The full list can be found in your workspace at:
-	echo $KCONF_OVERRIDE | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo The full list can be found in your kernel src dir at:
+	echo $KCONF_OVERRIDE | sed 's=^'$LINUX_SRC'/=   ='
 	echo
 fi
 if [ -s $KCONF_REQUIRED_CFG_OVERRIDE ]; then
@@ -377,16 +368,16 @@ if [ -s $KCONF_REQUIRED_CFG_OVERRIDE ]; then
 	echo "There were $OPT_COUNT required kernel config options redefined (and changed)"
         echo "during processing this BSP. This means that these required values are defined"
 	echo "in multiple fragments and changed from their base value."
-	echo "The full list can be found in your workspace at:"
-	echo "$KCONF_REQUIRED_CFG_OVERRIDE" | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo "The full list can be found in your kernel src dir at:"
+	echo "$KCONF_REQUIRED_CFG_OVERRIDE" | sed 's=^'$LINUX_SRC'/=   ='
 	echo
 fi
 if [ -s $KCONF_REDFINED_AS_BOARD_SPECIFIC ]; then
 	OPT_COUNT=`cat $KCONF_REDFINED_AS_BOARD_SPECIFIC | wc -l | awk '{print $1}'`
 	echo There were $OPT_COUNT kernel config options redefined as board specific.
 	echo This is not an error, but should be noted for future migration purposes.
-	echo The full list can be found in your workspace at:
-	echo $KCONF_REDFINED_AS_BOARD_SPECIFIC | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo The full list can be found in your kernel src dir at:
+	echo $KCONF_REDFINED_AS_BOARD_SPECIFIC | sed 's=^'$LINUX_SRC'/=   ='
 	echo
 fi
 
@@ -397,8 +388,8 @@ if [ -s $KCONF_DIR/mismatch.cfg ]; then
 	echo WARNING: There were $OPT_COUNT hardware options requested that do not
 	echo "         "have a corresponding value present in the final \".config\" file.
 	echo "         "This probably means you aren\'t getting the config you wanted.
-	echo The full list can be found in your workspace at:
-	echo $KCONF_DIR/mismatch.cfg | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo The full list can be found in your kernel src dir at:
+	echo $KCONF_DIR/mismatch.cfg | sed 's=^'$LINUX_SRC'/=   ='
 	echo
 	echo Waiting a second to make sure you get a chance to see this...
 	sleep 1 
@@ -410,8 +401,8 @@ if [ -s $KCONF_DIR/missing_required.cfg ]; then
 	echo "** NOTE: There were $OPT_COUNT required options requested that do not"
 	echo "         have a corresponding value present in the final \".config\" file."
 	echo "         This is a violation of the policy defined by the higher level config"
-	echo "The full list can be found in your workspace at:"
-	echo "$KCONF_DIR/missing_required.cfg" | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo "The full list can be found in your kernel src dir at:"
+	echo "$KCONF_DIR/missing_required.cfg" | sed 's=^'$LINUX_SRC'/=   ='
 	if [ -n "$required_is_error" ]; then
 	    exit 1
 	else

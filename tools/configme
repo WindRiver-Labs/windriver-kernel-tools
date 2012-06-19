@@ -52,13 +52,6 @@ EOF
 exit 1
 }
 
-get_branch_name()
-{
-    branchname=`git branch |grep \*|sed 's/^\* //'| sed 's%/base$%%'`
-
-    echo $branchname
-}
-
 # This is factored out into a function because for a given branch,
 # there may be more than one user (i.e. big endian, little endian,
 # or BSPs that use the same branch but differ only in kernel configs)
@@ -133,7 +126,7 @@ run_board_config()
 	return 1
     fi
 
-    KTGT=`get_branch_name $META`
+    KTGT=$KTYPE/$KMACH
     mkdir -p ./$META_DIR/cfg/$KTGT
     if [ $? != 0 ]; then
 	echo Failed to mkdir ./$META_DIR/cfg/$KTGT for config data
@@ -176,7 +169,7 @@ run_board_config()
     fi
     echo "[INFO] processing of raw cfg data completed."
     if [ $QUICK -ne 1 ]; then
-	kconf_check $CFGFILE /dev/null `pwd` $BUILD_DIR $KTGT
+	kconf_check $CFGFILE $META `pwd` $BUILD_DIR
     fi
 
 cat << EOF

@@ -1188,6 +1188,9 @@ fi
 #
 if [ -n "$_kconf" ]; then
 	_meta_series=$meta_dir/meta-series
+	KTYPE=`grep '_define KTYPE'    $_meta_series | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+	KMACH=`grep '_define KMACHINE' $_meta_series | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+	KTGT=$KTYPE/$KMACH
 
 	# we need to build our own list of relocation directories
 	rdirs=`cat $_meta_series|grep '^# _reloc_dir' |awk '{print $3}'`
@@ -1208,41 +1211,41 @@ if [ -n "$_kconf" ]; then
 	wrap_meta_series $_meta_series "_branch_begin _force_branch"
 	branchname=`git branch |grep \*|sed 's/^\* //'| sed 's%/base$%%'`
 
-	if [ ! -d "$meta_dir/cfg/$branchname/" ]; then
-	    mkdir -p $meta_dir/cfg/$branchname/
+	if [ ! -d "$meta_dir/cfg/$KTGT/" ]; then
+	    mkdir -p $meta_dir/cfg/$KTGT/
 	fi
 
 	if [ -z "$_continue" ]; then
-	    rm -f $meta_dir/cfg/$branchname/{non_,}hdw_frags.txt
-	    rm -f $meta_dir/cfg/$branchname/$fraglist
+	    rm -f $meta_dir/cfg/$KTGT/{non_,}hdw_frags.txt
+	    rm -f $meta_dir/cfg/$KTGT/$fraglist
 	    frgs=`cat $_meta_series|grep '^# _kconf' |awk '{print $4}'`
 	    for f in $frgs; do
 		reloc_frag=`_strip_common_prefix $f`
-		echo "$reloc_frag" >> $meta_dir/cfg/$branchname/$fraglist
+		echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
 	    done
 	else
 	    frgs=`cat $_meta_series|grep '^# _kconf' |awk '{print $4}'`
 	    for f in $frgs; do
 		reloc_frag=`_strip_common_prefix $f`
-		echo "$reloc_frag" >> $meta_dir/cfg/$branchname/$fraglist
+		echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
 	    done
 	fi
         cat $_meta_series | grep '^# _kconf' | while read entry; do
 		fragtype=`echo $entry | awk '{print $3}'`
 		fragname=`echo $entry | awk '{print $4}'`
 		if [ x$fragtype = xhardware ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$branchname/hdw_frags.txt
+			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$KTGT/hdw_frags.txt
 		elif [ x$fragtype = xnon-hardware ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$branchname/non_hdw_frags.txt
+			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$KTGT/non_hdw_frags.txt
 		elif [ x$fragtype = xrequired ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$branchname/required_frags.txt
+			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$KTGT/required_frags.txt
 		elif [ x$fragtype = xoptional ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$branchname/optional_frags.txt
+			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$KTGT/optional_frags.txt
 		else
 			echo "[ERROR] type \"$fragtype\" of file \"$fragname\" is not a supported type"
 			exit 1
 		fi
 	done
 
-	do_config_setup $meta_dir/cfg/$branchname/$fraglist $branchname
+	do_config_setup $meta_dir/cfg/$KTGT/$fraglist $branchname
 fi
