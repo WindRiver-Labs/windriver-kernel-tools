@@ -67,11 +67,18 @@ run_board_config()
     # Can't set these until we've unwound the checkpoint and have meta data.
     KVER=`cat ./$META_DIR/cfg/kernel-*cache/kver|sed 's/^v//'`
 
-    # Look for standard defines, with compatibility fallbacks
-    KARCH=`grep KARCH $SCC | awk '{print $3}'`
-    KTYPE=`grep KTYPE $SCC | awk '{print $3}'`
-
     META=./$META_DIR/meta-series
+
+    if [ ! -f $META ]; then
+	echo Something evil happened, cant find meta=\"$META\"
+	exit 1
+    fi
+
+    # Look for standard defines, with compatibility fallbacks
+    # In theory, there should never be multiple KARCH lines...
+    KARCH=`grep '^# _define KARCH'    $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+    KTYPE=`grep '^# _define KTYPE'    $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+    KMACH=`grep '^# _define KMACHINE' $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
 
     BUILD_DIR=$out_dir
 
@@ -83,9 +90,8 @@ run_board_config()
     CFGFILE=$machine-$target-config-$KVER
 
     if [ "x$KARCH" == "x" ] ; then
-	echo Couldnt determine architecture from file:
-	echo -e \\t$SCC
-	echo Assuming scc is not a valid BSP endpoint...
+	echo Error: Couldnt determine architecture from file:
+	echo -e \\t$META
 	return 1
     fi
 
@@ -240,48 +246,10 @@ if [ -z "$META_DIR" ]; then
 	META_DIR=meta
 fi
 
-if [ -e $META_DIR/top_tgt ]; then
-    SCC_LIST=`cat $META_DIR/top_tgt`
-else
-    echo "[INFO] Finding machine description for $machine"
-
-    define_tgt1=$machine
-    define_tgt2=$target
-
-    sccs_that_define=`find $META_DIR/cfg -name '*.scc' \
-                        | xargs grep -l -e 'define.*' | sort | uniq`
-    for scc in $sccs_that_define; do
-    	score=0
-    	max_score=0
-    	for tgt in $define_tgt1 $define_tgt2 $define_tgt3; do
-    	    if [ -n "$tgt" ]; then
-    		max_score=`expr $max_score + 1`
-    		f=`grep -l -e 'define.* '$tgt'$' $scc`
-    		if [ -n "$f" ]; then
-    		    score=`expr $score + 1`
-    		fi
-    	    fi
-    	done
-	
-    	if [ $score -eq $max_score ]; then
-    	    found_scc="$found_scc $scc"
-    	fi
-    done
-
-    SCC_LIST=$found_scc
-fi
-
-if [ -z "$SCC_LIST" ]; then
-	echo "Error: No machine description found for $machine"
+echo "[INFO] Configuring target/machine combo: \"$target/$machine\""
+run_board_config
+if [ $? != 0 ]; then
+	echo config of t/m=\"$target/$machine\" failed
 	exit 1
 fi
-
-for SCC in $SCC_LIST ; do
-	echo "[INFO] Configuring machine description: "`basename $SCC`
-	run_board_config
-	if [ $? != 0 ]; then
-		echo config of $machine \(`basename $SCC`\) failed
-		exit 1
-	fi
-done
 exit 0
