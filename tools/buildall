@@ -97,6 +97,14 @@ if [ ! -x $CONFIGME ];then
 	exit 1
 fi
 
+if [ -z "$META_DIR" ]; then
+	META_DIR=meta
+fi
+
+if [ -z "$META_BRANCH" ]; then
+	META_BRANCH=meta
+fi
+
 ######## build one branch; assumes it is checked out and config'd ######
 build_branch()
 {
@@ -205,9 +213,9 @@ stage_src()
 	cd $LINUX_SRC
 	debare
 
-	git checkout -f meta > /dev/null 2>&1
+	git checkout -f $META_BRANCH > /dev/null 2>&1
 	if [ $? != 0 ];then
-		echo checkout of meta failed
+		echo checkout of meta branch \"$META_BRANCH\" failed
 		exit 1
 	fi
 }
@@ -272,24 +280,16 @@ else
 	cd $LINUX_SRC
 fi
 
-# Create a mapping between scc and meta series and arch and branch
+# Create a mapping between meta series and arch and branch
 META_LIST=`mktemp`
-for i in `grep -Rl '^define KMACHINE' meta/cfg/kernel-cache` ; do
-	SCC=`basename $i .scc`
-	KMACHINE=`grep '^define KMACHINE' $i | head -n1 |awk '{print $3}'`
-	KTYPE=`grep '^define KTYPE' $i | awk '{print $3}'`
-	KARCH=`grep '^define KARCH' $i | awk '{print $3}'`
-	META=$SCC-meta
+for m in `echo $META_DIR/cfg/meta/*-meta` ; do
+	KARCH=`grep '^# _define KARCH' $m | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+	KTYPE=`grep '^# _define KTYPE' $m | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+	KMACH=`grep '^# _define KMACH' $m | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
 
-	if [ ! -f meta/cfg/meta/$META ]; then
-		echo Cant find meta series for $i
-		echo I expected to find meta/cfg/meta/$META
-		exit 1
-	fi
-
-	BRANCH=`get_branch meta/cfg/meta/$META`
+	BRANCH=`get_branch $m`
 	if [ -z "$BRANCH" ]; then
-		echo Cant find branch for $META
+		echo Cant find branch for $m
 		exit 1
 	fi
 
@@ -298,12 +298,12 @@ for i in `grep -Rl '^define KMACHINE' meta/cfg/kernel-cache` ; do
 		BRANCH=$BRANCH/base
 		git rev-parse $BRANCH > /dev/null 2>&1
 		if [ $? != 0 ]; then
-			echo Cant find base branch \($BRANCH\) for $META
+			echo Cant find base branch \($BRANCH\) for $m
 			exit 1
 		fi
 	fi
-	#        1        2      3     4      5     6
-	echo $KMACHINE $KTYPE $KARCH $META $BRANCH $SCC >> $META_LIST
+	#       1     2      3         4           5  
+	echo $KMACH $KTYPE $KARCH `basename $m` $BRANCH >> $META_LIST
 done
 
 if [ ! -z "$RANDOMIZE" ]; then
@@ -320,11 +320,17 @@ if [ $? != 0 ]; then
 fi
 $MYPATH/kgit-checkpoint -r > /dev/null 2>&1
 
-for i in `cat $META_LIST| awk '{print $6}'` ; do
+for i in `cat $META_LIST| awk '{print $4}'` ; do
 	BRANCH=`grep $i $META_LIST | awk '{print $5}'`
 	MACHINE=`grep $i $META_LIST | awk '{print $1}'`
 	ARCH=`grep $i $META_LIST | awk '{print $3}'`
 	KTYPE=`grep $i $META_LIST | awk '{print $2}'`
+	META=$META_DIR/cfg/meta/$i
+
+	if [ ! -f $META ]; then
+		echo Something evil happened, cant find meta=\"$META\"
+		exit 1
+	fi
 
 	if [ ! -z "$MAX_BUILDS" ]; then
 		TOTAL_BUILD=`expr $PASS_BUILD + $FAIL_BUILD`
@@ -340,7 +346,7 @@ for i in `cat $META_LIST| awk '{print $6}'` ; do
 		exit 1
 	fi
 	
-	BUILD_DIR=../$i
+	BUILD_DIR=../`echo $i|sed 's/-meta$//'`
 
 	if [ ! -z "$RESUME" ]; then
 		if [ -f $BUILD_DIR/00-PASS ]; then
@@ -359,8 +365,9 @@ for i in `cat $META_LIST| awk '{print $6}'` ; do
 		fi
 	fi
 
-	readlink -f `find meta -name $i.scc`  > meta/top_tgt
-	$CONFIGME -o ../$i $KTYPE $MACHINE > cfg.log 2>&1
+	# The authoratative source of data for configme is <meta-dir>/meta-series
+	cat $META > $META_DIR/meta-series
+	$CONFIGME -o $BUILD_DIR $KTYPE $MACHINE > cfg.log 2>&1
 	if [ $? != 0 ]; then
 		echo Configuration of $i failed
 		mv cfg.log $BUILD_DIR
