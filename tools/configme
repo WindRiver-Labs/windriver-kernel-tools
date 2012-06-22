@@ -135,6 +135,11 @@ run_board_config()
 
     frags=`cat $META_DIR/cfg/$KTGT/config_frag.txt | sed 's%\(^.*$\)%'$META_DIR/cfg'\1%'`
     pre_config -l $META_DIR/cfg/$KTGT/ $frags > $META_DIR/cfg/$KTGT/config.log 2>&1
+    if [ $? -ne 0 ]; then
+	echo "ERROR: could not sanitize configuration fragments"
+	echo "   errors are logged in $META_DIR/cfg/$KTGT/config.log"
+	exit 1
+    fi
 
     # remove any old assembled debug fragments
     rm -f $BUILD_DIR/.tmp.config*
