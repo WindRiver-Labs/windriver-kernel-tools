@@ -21,6 +21,23 @@ REFERENCE=~/git/linux
 # Set this if you want to randomize builds instead of alphabetical order.
 # RANDOMIZE=yes
 
+# More control over what gets built and what doesn't can be done
+# with the following black/white lists and black/white regex.
+# Any/all can be specified, and they are treated as a logical
+# AND of each (i.e. a meta must "pass" each criteria to get used).
+#
+# List of meta series you want to skip (ls meta/cfg/meta for all)
+# BLACKLIST="mti-malta64-be-preempt-rt-meta ti-omap3-standard-meta"
+
+# A regex that can blacklist a whole family
+# BLACKREGEX="routerstation.*"
+
+# List of explicit meta that are to be built (all others skipped)
+# WHITELIST="common-pc-preempt-rt-meta atom-pc-standard-meta"
+
+# A regex that can whitelist a whole family
+# WHITEREGEX=".*-preempt-rt-meta"
+
 # Set this if you want to limit the total number of builds.
 # MAX_BUILDS=5
 
