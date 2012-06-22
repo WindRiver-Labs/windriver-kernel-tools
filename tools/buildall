@@ -231,6 +231,41 @@ get_branch()
 	done | sed 's,/$,,'
 }
 
+fail_mail()
+{
+	local META=$1
+	local FAILLOG=$2
+	local DIR=`dirname $FAILLOG`
+	local FAILMAIL=`mktemp -p /var/tmp`
+	if [ $? != 0 ]; then
+		FAILMAIL=`mktemp -p /tmp`
+	fi
+
+	echo From: $MAILTO > $FAILMAIL
+	echo Date: `date '+%c %z'` >> $FAILMAIL
+	echo Subject: Build of $META failed. >> $FAILMAIL
+	echo >> $FAILMAIL
+	echo The build of $META has failed. >> $FAILMAIL
+	echo -------- error --------------- >> $FAILMAIL
+	grep error: $FAILLOG >> $FAILMAIL
+	echo -------- tail ---------------- >> $FAILMAIL
+	tail -n 30 $FAILLOG >> $FAILMAIL
+	echo ------------------------------ >> $FAILMAIL
+	echo >> $FAILMAIL
+	echo Sincerely, >> $FAILMAIL
+	echo buildall @ `hostname` >> $FAILMAIL
+
+	git send-email --from $MAILTO --quiet --confirm=never --to $MAILTO \
+		--smtp-server=$SMTPSERVER $FAILMAIL >> $DIR/mail.log 2>&1
+
+	if [ $? != 0 ]; then
+		echo tried to notify $MAILTO about something, but failed.
+		echo See $DIR/mail.log for details.
+	fi
+	cp $FAILMAIL $DIR
+	rm -f $FAILMAIL
+}
+
 ######################### start #####################
 
 PASS_CFG=0
@@ -243,6 +278,21 @@ if [ $? != 0 ]; then
 	echo Error -- you dont have a mkimage in your path, needed for
 	echo powerpc builds.  Go get one from the u-boot tree.
 	exit 1
+fi
+
+if [ -n "$MAILTO" ]; then
+	SMTPSERVER=`git config --get sendemail.smtpserver`
+	if [ -z "$SMTPSERVER" ]; then
+		echo Error: you need a smptserver setting in \$HOME/.gitconfig or a SMTPSERVER
+		echo setting in your \".buildallrc\" file if you want to have build failures sent to you.
+		exit 1
+	fi
+	which git | grep -q sysroot
+	if [ $? = 0 ]; then
+		echo Error: git send-email in the poky sysroot is non functional.
+		echo Please ensure the sysroot PATH for toolchain is _after_ normal PATH.
+		exit 1
+	fi
 fi
 
 if [ -d $BUILDALL ]; then
@@ -420,6 +470,7 @@ for i in `cat $META_LIST| awk '{print $4}'` ; do
 		if [ ! -f $BUILD_DIR/build.log ]; then
 			mv error.log $BUILD_DIR/build.log
 		fi
+		fail_mail $i $BUILD_DIR/build.log
 	else
 		echo -n passed.
 		touch $BUILD_DIR/00-PASS
