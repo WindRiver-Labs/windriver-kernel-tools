@@ -871,43 +871,6 @@ do_git()
     fi
 }
 
-# We have a tree, we have a list of fragments.  Now start the whole
-# processing and sanity checking from here.
-do_config_setup()
-{
-    local frags=$1
-    local name=$2
-
-    if [ $vlevel -eq 2 ]; then       
-	echo "[INFO] processing kernel fragments for $name"
-    fi
-
-    git show-ref --quiet --verify -- "refs/heads/$name";
-    if [ $? -ne 0 ]; then
-		git show-ref --quiet --verify -- "refs/heads/$name/base";
-		if [ $? -ne 0 ]; then
-			echo "[ERROR] \"$1\" requires \"$name\", but branch \"$name\" does not exist."
-			exit 1
-		else
-		    name="$name/base"
-		fi
-    fi
-
-    current=`git branch|grep '^\*'|awk '{print $2}'`
-
-    if [ x$name != x$current ]; then
-	echo "[INFO] checking out $name"
-	git checkout -q $name
-	if [ $? -ne 0 ]; then
-		echo "[ERROR] Checkout of $name failed"
-		exit 1;
-	fi
-    fi
-
-    # Things are now good to go for generate_cfg
-}
-
-
 _git()
 {
     git_args=$@
@@ -1206,11 +1169,6 @@ if [ -n "$_kconf" ]; then
 	    echo "[INFO] collecting configs in $_meta_series "
 	fi
 
-	# calling this will leave the tree on the last branch created
-	# by the meta series
-	wrap_meta_series $_meta_series "_branch_begin _force_branch"
-	branchname=`git branch |grep \*|sed 's/^\* //'| sed 's%/base$%%'`
-
 	if [ ! -d "$meta_dir/cfg/$KTGT/" ]; then
 	    mkdir -p $meta_dir/cfg/$KTGT/
 	fi
@@ -1246,6 +1204,4 @@ if [ -n "$_kconf" ]; then
 			exit 1
 		fi
 	done
-
-	do_config_setup $meta_dir/cfg/$KTGT/$fraglist $branchname
 fi
