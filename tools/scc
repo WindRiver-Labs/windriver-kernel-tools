@@ -829,69 +829,46 @@ include()
                 fi
             fi
 
-            for f in $to_call; do
-                if [ "`basename $f`" = "$current_feature" ]; then
-                    # if we are calling a feature with our same name, we
-                    # actually want the parent ... which is undefined at the
-                    # moment.
-                    pname="`echo -n $f; echo -n \"_undefined_\"`"
-                
-                    # the function we'd call should not have '.' in it, since
-                    # shell won't allow this
-                    out_name=$(_safe_funcname $pname)
+	    for f in $to_call; do
+		# the function we'd call also shouldn't have the path
+		# in it, if it was included with a partial path
+		out_name=`basename $f .$feature_ext`
 
-		    # the function we'd all also shouldn't have the path
-		    # in it, if it was included with a partial path
-		    out_name=`basename $pname .$feature_ext`
+		full_path=`search_include_paths $f`
+		if [ -z "$full_path" ]; then
+		    if [ "$scc_strict" = "t" ]; then
+			echo ""
+			echo "ERROR: included file $f is not available"
+			echo ""
+			exit 1
+		    fi
+		fi
+		path_sum=`echo $full_path | md5sum | cut -d' ' -f1`
 
-                    if [ "$last_cmd" == "patch" ]; then
-                        # there was an open command replacement, let's close
-                        # it
-                        _dump '`'
-                    fi
-                    _dump "   output=\"\$_cmds\" # save current work for function call";
+		# the function we'd call should not have '.' in it, since
+		# shell won't allow this
+		out_name=$(_safe_funcname $out_name"_$path_sum")
 
-		    if [ "$f" == "$after_func" ]; then
-			_dump "    _auto_branch=\"\$_auto_branch $out_name\""
-		    fi     
+		if [ "$last_cmd" == "patch" ]; then
+		    # there was an open command replacement, let's close
+		    # it
+		    _dump '`'
+		fi
 
-                    _dump "   $out_name;     # call function";
-		    _last_call=$out_name
-                    _dump '   _cmds="$output";   # restore current work';
+		if [ "$f" == "$after_func" ]; then
+		    _dump "    _auto_branch=\"\$_auto_branch $out_name\""
+		fi     
 
-                    add_feature_to_process $pname
-                else
-		    # the function we'd call also shouldn't have the path
-		    # in it, if it was included with a partial path
-		    out_name=`basename $f .$feature_ext`
+		_dump "	  output=\"\$_cmds\" # save current work for function call";
+		_dump "	  $out_name;	 # call function";
+		
+		_last_call=$out_name
+		_dump '	  _cmds="$output";   # restore current work '
 
-                    full_path=`search_include_paths $f`
-		    path_sum=`echo $full_path | md5sum | cut -d' ' -f1`
+		add_feature_to_process $f
 
-                    # the function we'd call should not have '.' in it, since
-                    # shell won't allow this
-                    out_name=$(_safe_funcname $out_name"_$path_sum")
-
-                    if [ "$last_cmd" == "patch" ]; then
-                        # there was an open command replacement, let's close
-                        # it
-                        _dump '`'
-                    fi
-
-		    if [ "$f" == "$after_func" ]; then
-			_dump "    _auto_branch=\"\$_auto_branch $out_name\""
-		    fi     
-
-                    _dump "   output=\"\$_cmds\" # save current work for function call";
-                    _dump "   $out_name;     # call function";
-
-		    _last_call=$out_name
-                    _dump '   _cmds="$output";   # restore current work '
-
-                    add_feature_to_process $f
-                fi
-                last_cmd=include
-            done;
+		last_cmd=include
+	    done;
 	else
 	    # the feature was excluded. This is a branch point.
             if [ "$last_cmd" == "patch" ]; then
