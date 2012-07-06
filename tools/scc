@@ -479,7 +479,7 @@ kconf()
     this_frag=$current_feature_dir/$2
 
     if [ ! -f "$this_frag" ]; then
-	this_frag=$2
+	this_frag=`search_include_paths $2`
     fi
 
     if [ "$last_cmd" == "patch" ]; then
