@@ -137,7 +137,7 @@ run_board_config()
     pre_config -l $META_DIR/cfg/$KTGT/ $frags > $META_DIR/cfg/$KTGT/config.log 2>&1
     if [ $? -ne 0 ]; then
 	echo "ERROR: could not sanitize configuration fragments"
-	echo "   errors are logged in $META_DIR/cfg/$KTGT/config.log"
+	echo "   errors are logged in `pwd`/$META_DIR/cfg/$KTGT/config.log"
 	exit 1
     fi
 

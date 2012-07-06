@@ -220,7 +220,7 @@ for f in $FRAGS; do
 		cat $LOGDIR/.scratch >> $f.sanitized
 		rm -f $LOGDIR/.scratch
 	else
-		echo "[ERROR] Kern frag $frag does not exist"
+		echo "[ERROR] Kern frag $f does not exist"
 		exit 1
 	fi
 done
