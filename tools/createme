@@ -158,7 +158,7 @@ decheckpoint()
 			# need to restore the checkpoint.
 			branch_count=`git branch --contains $meta_branch | wc -l`
 			if [ $branch_count -le 2 ]; then
-				kgit-checkpoint -r
+				kgit-checkpoint -r -b $meta_branch
 			fi
 			;;
 		external)

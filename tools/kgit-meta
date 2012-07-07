@@ -1040,7 +1040,7 @@ fi
 
 meta_dir_name=$KMETA
 show_inheritance_in_branches=t
-if [ -z "$meta_dir" ]; then
+if [ -z "$meta_dir_name" ]; then
     meta_dir_name=meta
 fi
 
