@@ -231,7 +231,7 @@ process_audit_directory()
     fi
     if [ -n "$redefinition_flag" ] && [ -s "$audit_dir/$redefinition_file" ]; then
 	rm -f /tmp/redefinition.cfg
-	generate_option_list $audit_dir/$mismatch_file /tmp/redefinition.cfg
+	generate_option_list $audit_dir/$redefinition_file /tmp/redefinition.cfg
 	process_cfg_only_audit_file /tmp/redefinition.cfg "$input" "$output"
     fi
     if [ -n "$specified_non_hardware_flag" ] && [ -s "$audit_dir/$specified_non_hardware_file" ]; then
