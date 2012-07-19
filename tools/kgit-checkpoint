@@ -121,7 +121,7 @@ if [ -n "$check_refs" ]; then
     checkpoint_branch=`echo $check_refs | cut -d- -f2`
     verify_branch=`git show-ref $checkpoint_branch`
     checkpoint_tag_name=$check_refs
-    if [ -z "verify_branch" ]; then
+    if [ -z "$verify_branch" ]; then
 	checkpoint_branch=
 	checkpoint_tag_name=
     fi
