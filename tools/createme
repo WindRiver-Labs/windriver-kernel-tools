@@ -19,7 +19,7 @@ usage()
 {
 cat << EOF
 
-    createme [-v] [--disable-meta-gen] --meta=<branch name> <arch> <branch> [defconfig]
+    createme [-v] [--disable-meta-gen] --meta=<branch name> <arch> <branch>
 
       --disable-meta-gen: do not automatically create meta data
                           if not already present in the source tree.
@@ -62,7 +62,6 @@ done
 
 arch=$1
 branch=$2
-defconfig=$3 # might be empty
 CURRENT=`git branch |grep \*|sed 's/^\* //'`
 repo=
 
@@ -194,7 +193,6 @@ check_defconfig() {
 # being built
 check_branch() {
 	branch=$1
-	defconfig=$2
 
 	ktgt=$branch
 
@@ -217,6 +215,5 @@ check_branch() {
 
 
 decheckpoint
-check_defconfig $defconfig
-check_branch $branch $defconfig
+check_branch $branch
 metaize $branch
