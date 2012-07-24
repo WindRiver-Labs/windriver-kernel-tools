@@ -367,7 +367,7 @@ generate_branch_name()
     last_passed_branch=$3
 
     all_possible_branches=`cat $meta_dir/meta-series | grep -E "^# _branch_begin" \
-                             | sed 's/^# _branch_begin //'`
+                             | sed 's/^# _branch_begin //' | awk '{ print $1 }'`
     who_is_last_branch=`echo "$all_possible_branches" | tail -1`
 
     if [ -n "$show_inheritance_in_branches" ]; then
@@ -659,7 +659,7 @@ do_patch()
 	name=`echo $name | sed 's%^\./%%g'`
 	if [ -n "$_continue" ]; then
 	    # check to make sure it really is unique
-	    if [ -e $status_file ]; then
+	    if [ -n "$status_file" ] && [ -e $status_file ]; then
                 grep -q $local_name $status_file
 		if [ $? -ne 0 ]; then
 		    # patch isn't already in the status. push

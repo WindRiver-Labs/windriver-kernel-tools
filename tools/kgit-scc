@@ -632,7 +632,7 @@ if [ -n "$apply" ]; then
 
 	# exec_total was calculuated when we generated all the meta_series
 	total=$exec_total
-		
+	start_branch=`git branch --no-color | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/'`
 	count=1
 	for e in $executables; do
 	    # this will trigger a complete copy of all the config
@@ -678,6 +678,8 @@ if [ -n "$apply" ]; then
 		echo "[INFO] Updating cfg files (kgit-meta --update --kconf $meta_dir/$e-meta)"
 		kgit-meta --update --kconf $meta_dir/$e-meta
 	    fi
+	    
+	    git checkout $start_branch
 
 	    let count=$count+1
 	done
