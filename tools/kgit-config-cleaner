@@ -13,7 +13,7 @@
 
 
 # example:
-#  cd build/tmp/work/routerstationpro-poky-linux/linux-yocto-3.0.32+git6+46e8fc2bbbe73514e8d99101adaaa373f760ffa7_1+21bd4a0a3b0f061e4640dd1011ebc94d122b5e40-r4/linux/meta/cfg/yocto/standard/routerstationpro
+#  cd build/tmp/work/routerstationpro-poky-linux/linux-yocto-3.0.32*/linux/meta/cfg/yocto/standard/routerstationpro
 #  kgit-config-cleaner -v --force --type all --audit-dir `pwd` \
 #   -i ../../../kernel-cache/bsp/routerstationpro/routerstationpro.cfg  \
 #   -o cleaned_config
@@ -23,13 +23,13 @@ usage()
 cat << EOF
 
   kgit-config-cleaner [--force] [--dry-run] [--type <audit type list>] 
-                      --audit-dir <dir> -i <input config> -o <output config>
+                      --audit-dir <dir> [ -k <keep configs> ] \
+                      -i <input config> -o <output config>
 
-   kgit-config-cleaner is run against an input file, and the
-   results of an initial kernel configuration that has produced a 
-   Kconfig option audit. It produces a modified output file that
-   can then be fed back into the process to refine a kernel 
-   configuration.
+   kgit-config-cleaner is run against an input file, and the results of an
+   initial kernel configuration that has produced a Kconfig option audit. It
+   produces a modified output file that can then be fed back into the process
+   to refine a kernel configuration.
 
 
    type: comma separated list of audit types to process.
@@ -40,14 +40,22 @@ cat << EOF
           redefined: process redefined options
           non-hardare: process non-hardware options
      
-   input config: The input file to be cleaned. This is typically
-                 a defconfig.
+   input config: The input file to be cleaned. This is typically a defconfig.
+
    output config: The filename of your choice. It is a copy of 
                   input config, with offending lines removed. 
-   audit dir: the directory that contains the output of a yocto
-              kernel configuration and audit. The input files
-              in this directory are automatically processed and
-              used to produce the output
+
+   keep config: An input config file with a list of configurations that should
+                be maintained regardless of other cleaning activities. These
+                are typically config options that should be declared as
+                'hardware' for the given board, and the keep entry would no
+                longer be necessary.
+                Note: This file is normally called 'hardware.cfg', so it can be
+                reused by the build process in future iterations.
+                
+   audit dir: the directory that contains the output of a yocto kernel 
+              configuration and audit. The input files in this directory are
+              automatically processed and used to produce the output
  
    --force: force overwrite the output file
    --dry-run: don't modify any files, but dump what would be done
@@ -70,6 +78,10 @@ while [ $# -gt 0 ]; do
             output=$2
             shift
             ;;
+    --k|-k)
+	    keep_config=$2
+	    shift
+	    ;;
     --audit-dir)
             audit_dir=$2
             shift
@@ -147,12 +159,14 @@ invalid_cfg_file="invalid.cfg"
 mismatch_file="mismatch.txt"
 redefinition_file="redefinition.txt"
 specified_non_hardware_file="specified_non_hdw.cfg"
+specified_hardware_file="specified_hdw.cfg"
 
 process_cfg_only_audit_file()
 {
     aud_file=$1
     in_file=$2
     out_file=$3
+    override_file=$4
     count=0
 
     echo ""
@@ -167,15 +181,29 @@ process_cfg_only_audit_file()
 	      $in_file | sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/'`
     for o in $cfg_list; do
 	remove=
+	keep=
 	option_line=`grep "^\(# \)\{0,1\}$o[=\( is not set\)]" $in_file`
 	grep -q $o $aud_file
 	if [ $? -eq 0 ]; then
-	    count=`expr $count + 1`
-	    if [ -n "$dry_run" ]; then
-		echo "   [dry-run] option $o should be removed from the configuration"
-	    else
-		remove=t
-		echo $option_line >> /tmp/removal.txt
+	    # check to see if the option is in the keep file
+	    if [ -n "$keep_config" ] || [ -n "$override_file" ]; then
+		grep -q -w $o $keep_config $override_file
+		if [ $? -eq 0 ]; then
+		    if [ -n "$verbose" ]; then
+			echo "   INFO: option $o would have been removed, but it is"
+			echo "         specified in the keep configuration list"
+		    fi
+		    keep=t
+		fi
+	    fi
+	    if [ -z "$keep" ]; then
+		count=`expr $count + 1`
+		if [ -n "$dry_run" ]; then
+		    echo "   [dry-run] option $o should be removed from the configuration"
+		else
+		    remove=t
+		    echo $option_line >> /tmp/removal.txt
+		fi
 	    fi
 	fi
 	if [ -n "$remove" ]; then
@@ -232,7 +260,7 @@ process_audit_directory()
     if [ -n "$redefinition_flag" ] && [ -s "$audit_dir/$redefinition_file" ]; then
 	rm -f /tmp/redefinition.cfg
 	generate_option_list $audit_dir/$redefinition_file /tmp/redefinition.cfg
-	process_cfg_only_audit_file /tmp/redefinition.cfg "$input" "$output"
+	process_cfg_only_audit_file /tmp/redefinition.cfg "$input" "$output" "$specified_hardware_file"
     fi
     if [ -n "$specified_non_hardware_flag" ] && [ -s "$audit_dir/$specified_non_hardware_file" ]; then
     	process_cfg_only_audit_file "$audit_dir/$specified_non_hardware_file" "$input" "$output"
