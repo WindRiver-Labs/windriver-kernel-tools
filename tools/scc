@@ -1302,7 +1302,7 @@ compile_files()
 			tt=`search_include_paths $t $all_files`
 			if [ -z "$tt" ]; then
                             # we couldn't find it, is it on an include path?
-			    echo "warning: could not find (or was already included): $t"
+			    echo "warning: could not find (or was already included): $t ($current_feature_dir)"
 			else
 			    abs="$abs $tt"
 			fi
