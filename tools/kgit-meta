@@ -526,7 +526,10 @@ do_branch()
 	noinherit_branches="$noinherit_branches $name"
     fi
 
-    name=`generate_branch_name $name $noinherit $last_branch`
+    # if a branch point was passed, the name is fully qualified in the statement
+    if [ -z "$branchpoint" ]; then
+	name=`generate_branch_name $name $noinherit $last_branch`
+    fi
 
     if [ "$force" = "force" ]; then
 	# if the branches have diverged (i.e. another force) and we don't
