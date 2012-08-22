@@ -1115,6 +1115,8 @@ if [ -n "$_patch_apply" ]; then
 	done
     fi
 
+    branch_prep $orig_branch
+
     # pass 1: interpret the meta series
     wrap_meta_series $meta_dir/meta-series
 
