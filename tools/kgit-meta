@@ -815,7 +815,7 @@ do_pending_patches()
 	if [ $push_code -ne 0 ]; then
 	    echo "[ERROR] unable to complete push"
 	    echo "pending patches are:"
-	    guilt unapplied
+	    GUILT_BASE=$meta_dir guilt unapplied
 	    exit 1
 	fi
     fi
