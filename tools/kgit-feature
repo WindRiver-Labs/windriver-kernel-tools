@@ -70,7 +70,22 @@ if [ -z "$dump" ]; then
 	    echo "Processing: $f"
 	fi
 	
-	var=config
+	# categorize the item as a feature, optional-feature, or config
+	var=feature
+
+	echo $f | grep -q "cfg"
+	if [ $? -eq 0 ]; then
+	    var=config
+	fi
+	echo $f | grep -q "\-enable"
+	if [ $? -eq 0 ]; then
+	    var=feature-optional
+	fi
+	grep KFEATURE_COMPATIBILITY $directory/$f | grep -q optional
+	if [ $? -eq 0 ]; then
+	    var=feature-optional
+	fi
+	
 	value=`echo $f | sed 's%^./%%'`
 	
 	if [ -n "$verbose" ]; then
