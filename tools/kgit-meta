@@ -374,7 +374,13 @@ generate_branch_name()
    	# if there are more branches to be created, we need to add a /base
 	# onto this branch, or the subsequent ones will have problems.
         if [ "$noinherit" = "f" ]; then
-	    if [ "$who_is_last_branch" != "$suggested_name" ]; then
+
+            # one more check. if the last branch is a branch with an explicit branch
+            # point. We shouldn't do a /base, since that branch may not use our tree
+            # inheirtance structure at all.
+            branch_point=`cat $meta_dir/meta-series | grep -E "^# _branch_begin.*$who_is_last_branch" \
+                             | sed 's/^# _branch_begin //' | awk '{ print $2 }'`
+	    if [ "$who_is_last_branch" != "$suggested_name" ] && [ -z "$branch_point" ]; then
 		suggested_name="$suggested_name/base"
 	    fi
 	fi
