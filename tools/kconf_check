@@ -185,13 +185,19 @@ rm -f $KCONF_DIR/all.cfg~
 ##########################################################################
 
 rm -f $KCONF_DIR/specified.cfg~
+if [ ! -e $HDW_CFGS ]; then
+    touch $HDW_CFGS
+fi
+
 for i in `cat $HDW_CFGS` ; do
 	cat $META_DIR/cfg/$i | \
 	grep '^\(# \)\{0,1\}CONFIG_[a-zA-Z0-9_]*[=\( is not set\)]' | \
 	sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/' \
 	>> $KCONF_DIR/specified.cfg~
 done
-sort < $KCONF_DIR/specified.cfg~ | uniq > $KCONF_DIR/specified.cfg
+if [ -e $KCONF_DIR/specified.cfg~ ]; then
+    sort < $KCONF_DIR/specified.cfg~ | uniq > $KCONF_DIR/specified.cfg
+fi
 rm -f $KCONF_DIR/specified.cfg~
 
 check_for_redefined_config()
@@ -265,6 +271,8 @@ fi
 
 rm -f $KCONF_DIR/specified_non_hdw.cfg
 rm -f $KCONF_DIR/specified_hdw.cfg
+touch $KCONF_DIR/specified_non_hdw.cfg
+touch $KCONF_DIR/specified_hdw.cfg
 for i in `cat $KCONF_DIR/specified.cfg` ; do
 	grep -x -e $i $KCONF_DIR/avail_hardware.cfg >> $KCONF_DIR/specified_hdw.cfg
 	if [ $? != 0 ]; then
