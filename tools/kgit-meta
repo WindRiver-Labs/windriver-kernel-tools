@@ -1187,29 +1187,28 @@ if [ -n "$_kconf" ]; then
 	if [ -z "$_continue" ]; then
 	    rm -f $meta_dir/cfg/$KTGT/{non_,}hdw_frags.txt
 	    rm -f $meta_dir/cfg/$KTGT/$fraglist
-	    frgs=`cat $_meta_series|grep '^# _kconf' |awk '{print $4}'`
-	    for f in $frgs; do
-		reloc_frag=`_strip_common_prefix $f`
-		echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
-	    done
-	else
-	    frgs=`cat $_meta_series|grep '^# _kconf' |awk '{print $4}'`
-	    for f in $frgs; do
-		reloc_frag=`_strip_common_prefix $f`
-		echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
-	    done
 	fi
         cat $_meta_series | grep '^# _kconf' | while read entry; do
 		fragtype=`echo $entry | awk '{print $3}'`
 		fragname=`echo $entry | awk '{print $4}'`
+		reloc_frag=`_strip_common_prefix $fragname`
+
 		if [ x$fragtype = xhardware ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$KTGT/hdw_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/hdw_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
 		elif [ x$fragtype = xnon-hardware ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$KTGT/non_hdw_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/non_hdw_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
 		elif [ x$fragtype = xrequired ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$KTGT/required_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/required_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
 		elif [ x$fragtype = xoptional ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$KTGT/optional_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/optional_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
+		elif [ x$fragtype = xmask ]; then
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/masked_frags.txt
+		elif [ x$fragtype = xverify ]; then
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/verify_frags.txt
 		else
 			echo "[ERROR] type \"$fragtype\" of file \"$fragname\" is not a supported type"
 			exit 1

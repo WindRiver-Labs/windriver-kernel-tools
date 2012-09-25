@@ -247,7 +247,7 @@ fi
 echo "[INFO] Configuring target/machine combo: \"$target/$machine\""
 run_board_config
 if [ $? != 0 ]; then
-	echo config of t/m=\"$target/$machine\" failed
+	echo config of \"$target/$machine\" failed
 	exit 1
 fi
 exit 0
