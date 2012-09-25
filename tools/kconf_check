@@ -43,7 +43,7 @@ KCONF_NONHDW=$KCONF_DIR/non-hardware.kcf
 
 # Override for hardware CONFIG items that are in a non-hardware Kconfig.
 CONF_HDW=$KCONF_DIR/always_hardware.cfg
-# Overrride for non-hardware CONFIG items that are in a hardware Kconfig.
+# Override for non-hardware CONFIG items that are in a hardware Kconfig.
 CONF_NONHDW=$KCONF_DIR/always_nonhardware.cfg
 
 # Generated configs from feature directories that contain "required.cfg"
@@ -68,16 +68,17 @@ KCONF_REDFINED_AS_BOARD_SPECIFIC=$KCONF_DIR/redefined_as_board_specific.txt
 #echo KCONF_DIR: $KCONF_DIR
 
 # Actual list of existing config fragments that are hardware.
-HDW_CFGS=$KCONF_DIR/hdw_frags.txt
+HDW_FRAGS=$KCONF_DIR/hdw_frags.txt
+NON_HDW_FRAGS=$KCONF_DIR/non_hdw_frags.txt
 
 # List of fragments that had the "required" keyword.
-REQUIRED_CFGS=$KCONF_DIR/required_frags.txt
+REQUIRED_FRAGS=$KCONF_DIR/required_frags.txt
 
 # If we don't have hardware fragments or required fragments, there isn't any
 # policy to enforce. So we can exit early in this case .. after warning.
-if [ ! -s $HDW_CFGS ] && [ ! -s $REQUIRED_CFGS ]; then
+if [ ! -s $HDW_FRAGS ] && [ ! -s $REQUIRED_FRAGS ]; then
 	echo WARNING: Can\'t find any BSP hardware or required configuration fragments.
-	echo WARNING: Looked at $HDW_CFGS and $REQUIRED_CFGS in directory: $KCONF_DIR
+	echo WARNING: Looked at $HDW_FRAGS and $REQUIRED_FRAGS in directory: $KCONF_DIR
 	exit 0
 fi
 
@@ -189,21 +190,50 @@ rm -f $KCONF_DIR/all.cfg~
 # and do strip duplicates (if any).
 ##########################################################################
 
-rm -f $KCONF_DIR/specified.cfg~
-if [ ! -e $HDW_CFGS ]; then
-    touch $HDW_CFGS
+rm -f $KCONF_DIR/input_hardware_configs.cfg~
+touch $KCONF_DIR/input_hardware_configs.cfg
+if [ -s $HDW_FRAGS ]; then
+    for i in `cat $HDW_FRAGS` ; do
+	cat $META_DIR/cfg/$i | \
+	    grep '^\(# \)\{0,1\}CONFIG_[a-zA-Z0-9_]*[=\( is not set\)]' | \
+	    sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/' \
+	    >> $KCONF_DIR/input_hardware_configs.cfg~
+    done
+    if [ -e $KCONF_DIR/input_hardware_configs.cfg~ ]; then
+	sort < $KCONF_DIR/input_hardware_configs.cfg~ | uniq > $KCONF_DIR/input_hardware_configs.cfg
+    fi
+    rm -f $KCONF_DIR/input_hardware_configs.cfg~
 fi
 
-for i in `cat $HDW_CFGS` ; do
+rm -f $KCONF_DIR/input_non_hardware_configs.cfg~
+touch $KCONF_DIR/input_non_hardware_configs.cfg
+if [ -s $NON_HDW_FRAGS ]; then
+    for i in `cat $NON_HDW_FRAGS` ; do
 	cat $META_DIR/cfg/$i | \
-	grep '^\(# \)\{0,1\}CONFIG_[a-zA-Z0-9_]*[=\( is not set\)]' | \
-	sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/' \
-	>> $KCONF_DIR/specified.cfg~
-done
-if [ -e $KCONF_DIR/specified.cfg~ ]; then
-    sort < $KCONF_DIR/specified.cfg~ | uniq > $KCONF_DIR/specified.cfg
+	    grep '^\(# \)\{0,1\}CONFIG_[a-zA-Z0-9_]*[=\( is not set\)]' | \
+	    sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/' \
+	    >> $KCONF_DIR/input_non_hardware_configs.cfg~
+    done
+    if [ -e $KCONF_DIR/input_non_hardware_configs.cfg~ ]; then
+	sort < $KCONF_DIR/input_non_hardware_configs.cfg~ | uniq > $KCONF_DIR/input_non_hardware_configs.cfg
+    fi
+    rm -f $KCONF_DIR/input_non_hardware_configs.cfg~
 fi
-rm -f $KCONF_DIR/specified.cfg~
+
+rm -f $KCONF_DIR/required.cfg~
+touch $KCONF_DIR/required.cfg
+if [ -s $REQUIRED_FRAGS ]; then
+    rm -f $KCONF_DIR/required.cfg~
+    for i in `cat $REQUIRED_FRAGS` ; do
+	cat $META_DIR/cfg/$i | \
+	    grep '^\(# \)\{0,1\}CONFIG_[a-zA-Z0-9_]*[=\( is not set\)]' | \
+	    sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/' \
+	    >> $KCONF_DIR/required.cfg~
+    done
+    sort < $KCONF_DIR/required.cfg~ | uniq > $KCONF_DIR/required.cfg
+    rm -f $KCONF_DIR/required.cfg~
+fi
+
 
 check_for_redefined_config()
 {
@@ -231,21 +261,6 @@ check_for_redefined_config()
 	done
 }
 
-if [ -s $REQUIRED_CFGS ]; then
-    rm -f $KCONF_DIR/required.cfg~
-    for i in `cat $REQUIRED_CFGS` ; do
-	cat $META_DIR/cfg/$i | \
-	    grep '^\(# \)\{0,1\}CONFIG_[a-zA-Z0-9_]*[=\( is not set\)]' | \
-	    sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/' \
-	    >> $KCONF_DIR/required.cfg~
-    done
-    sort < $KCONF_DIR/required.cfg~ | uniq > $KCONF_DIR/required.cfg
-    rm -f $KCONF_DIR/required.cfg~
-else
-    touch $KCONF_DIR/required.cfg
-fi
-
-
 ##########################################################################
 # Find the options that are just obsolete trash and don't exist in any
 # file whatsoever (leftovers from kernel uprev, etc etc)
@@ -253,7 +268,9 @@ fi
 
 rm -f $KCONF_DIR/invalid.cfg
 touch $KCONF_DIR/invalid.cfg
-for i in `cat $KCONF_DIR/specified.cfg $KCONF_DIR/required.cfg` ; do
+for i in `cat $KCONF_DIR/input_hardware_configs.cfg \
+              $KCONF_DIR/input_non_hardware_configs.cfg \
+              $KCONF_DIR/required.cfg` ; do
 	grep -q -x -e $i $KCONF_DIR/all.cfg 
 	if [ $? != 0 ]; then
 		echo $i >> $KCONF_DIR/invalid.cfg
@@ -278,7 +295,7 @@ rm -f $KCONF_DIR/specified_non_hdw.cfg
 rm -f $KCONF_DIR/specified_hdw.cfg
 touch $KCONF_DIR/specified_non_hdw.cfg
 touch $KCONF_DIR/specified_hdw.cfg
-for i in `cat $KCONF_DIR/specified.cfg` ; do
+for i in `cat $KCONF_DIR/input_hardware_configs.cfg` ; do
 	grep -x -e $i $KCONF_DIR/avail_hardware.cfg >> $KCONF_DIR/specified_hdw.cfg
 	if [ $? != 0 ]; then
 		grep -q -x -e $i $KCONF_DIR/invalid.cfg
@@ -360,7 +377,6 @@ for i in `cat $KCONF_DIR/specified_hdw.cfg` ; do
 	fi		
 done
 
-
 if [ -s $KCONF_FRAG_ERRS ]; then
 	OPT_COUNT=`cat $KCONF_FRAG_ERRS |grep Warning: | wc -l | awk '{print $1}'`
 	echo There were $OPT_COUNT instances of config fragment errors.
@@ -425,7 +441,7 @@ fi
 
 # Clean up any empty autogenerated files; helps the signal to noise ratio
 for i in all.kcf known.kcf known_current.kcf obsolete.kcf unknown.kcf	\
-	avail_hardware.cfg all.cfg specified.cfg invalid.cfg 		\
+	avail_hardware.cfg all.cfg input_hardware_configs.cfg invalid.cfg 		\
 	specified_hdw.cfg specified_non_hdw.cfg mismatch.cfg		\
 	fragment_errors.txt
 do
