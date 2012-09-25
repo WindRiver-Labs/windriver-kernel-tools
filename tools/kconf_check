@@ -24,6 +24,11 @@ LINUX_BUILD=$4
 LC_ALL=C
 export LC_ALL
 
+# check for V=<foo> in the environment
+if [ -n "$V" ]; then
+    verbose=$V
+fi
+
 KTYPE=`grep '^# _define KTYPE'    $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
 KMACH=`grep '^# _define KMACHINE' $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
 
@@ -300,7 +305,6 @@ fi
 # value from that, and the set value from the final .config file.
 ##########################################################################
 INPUT_CONFIG=$KERNEL_CONFIG
-rm -f $KCONF_DIR/mismatch.cfg
 if [ ! -e $KCONF_DIR/$KERNEL_CONFIG ]; then
     KERNEL_CONFIG=`find $KCONF_DIR -name "*$INPUT_CONFIG" | head -n1`
     if [ -n "$KERNEL_CONFIG" ]; then
@@ -315,7 +319,7 @@ fi
 
 rm -f $KCONF_REQUIRED_CFG_OVERRIDE
 for i in `cat $KCONF_DIR/required.cfg` ; do
-        # first test: was a required value redifined and changed ?
+        # first test: was a required value redefined and changed ?
 	if [ -f "$KCONF_OVERRIDE" ]; then
         	override=`grep -A2 -w -E "^Value of $i" $KCONF_OVERRIDE`
 		if [ $? -eq 0 ]; then
@@ -339,6 +343,7 @@ for i in `cat $KCONF_DIR/required.cfg` ; do
 	fi
 done
 
+rm -f $KCONF_DIR/mismatch.cfg
 for i in `cat $KCONF_DIR/specified_hdw.cfg` ; do
 	REQUESTED_VAL=`grep -w -e $i $KCONF_DIR/$KERNEL_CONFIG`
 	ACTUAL_VAL=`grep -w -e $i $LINUX_BUILD/.config`
@@ -363,7 +368,7 @@ if [ -s $KCONF_FRAG_ERRS ]; then
 	echo $KCONF_FRAG_ERRS | sed 's=^'$LINUX_SRC'/=   ='
 	echo
 fi
-if [ -n "$report_all_override_flag" ] && [ -s $KCONF_OVERRIDE ]; then
+if [ -n "$verbose" ] && [ -s $KCONF_OVERRIDE ]; then
 	OPT_COUNT=`cat $KCONF_OVERRIDE |grep Value | wc -l | awk '{print $1}'`
 	echo There were $OPT_COUNT kernel config options redefined during processing this BSP.
 	echo These config options are defined in more than one config fragment.
