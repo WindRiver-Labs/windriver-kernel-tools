@@ -277,15 +277,6 @@ for i in `cat $KCONF_DIR/input_hardware_configs.cfg \
 	fi
 done
 
-if [ -s $KCONF_DIR/invalid.cfg ]; then
-	OPT_COUNT=`wc -l $KCONF_DIR/invalid.cfg | awk '{print $1}'`
-	echo This BSP sets $OPT_COUNT invalid/obsolete kernel options.
-	echo These config options are not offered anywhere within this kernel.
-	echo The full list can be found in your kernel src dir at:
-	echo $KCONF_DIR/invalid.cfg | sed 's=^'$LINUX_SRC'/=   ='
-	echo
-fi
-
 ##########################################################################
 # Find the options that aren't present in the available hardware
 # option list.  Don't re-list ones we've already flagged invalid.
@@ -307,9 +298,9 @@ done
 
 if [ -s $KCONF_DIR/specified_non_hdw.cfg ]; then
 	OPT_COUNT=`wc -l $KCONF_DIR/specified_non_hdw.cfg | awk '{print $1}'`
-	echo This BSP sets $OPT_COUNT kernel options that are possibly non-hardware related.
-	echo The full list can be found in your kernel src dir at:
+	echo -n "[non-hardware ($OPT_COUNT)]: "
 	echo $KCONF_DIR/specified_non_hdw.cfg | sed 's=^'$LINUX_SRC'/=   ='
+	echo "   This BSP sets config options that are possibly non-hardware related."
 	echo
 fi
 
@@ -335,6 +326,7 @@ if [ ! -e $KCONF_DIR/$KERNEL_CONFIG ]; then
 fi
 
 rm -f $KCONF_REQUIRED_CFG_OVERRIDE
+rm -f $KCONF_DIR/missing_required.cfg
 for i in `cat $KCONF_DIR/required.cfg` ; do
         # first test: was a required value redefined and changed ?
 	if [ -f "$KCONF_OVERRIDE" ]; then
@@ -360,6 +352,24 @@ for i in `cat $KCONF_DIR/required.cfg` ; do
 	fi
 done
 
+output_report_header()
+{
+    echo ""
+    echo "kernel configuration audit report"
+    echo "================================="
+    echo ""
+}
+
+output_report_header
+
+if [ -s $KCONF_DIR/invalid.cfg ]; then
+	OPT_COUNT=`wc -l $KCONF_DIR/invalid.cfg | awk '{print $1}'`
+	echo -n "[invalid ($OPT_COUNT)]: "
+	echo $KCONF_DIR/invalid.cfg | sed 's=^'$LINUX_SRC'/=   ='
+	echo "   This BSP sets config options that are not offered anywhere within this kernel"
+	echo
+fi
+
 rm -f $KCONF_DIR/mismatch.cfg
 for i in `cat $KCONF_DIR/specified_hdw.cfg` ; do
 	REQUESTED_VAL=`grep -w -e $i $KCONF_DIR/$KERNEL_CONFIG`
@@ -379,59 +389,57 @@ done
 
 if [ -s $KCONF_FRAG_ERRS ]; then
 	OPT_COUNT=`cat $KCONF_FRAG_ERRS |grep Warning: | wc -l | awk '{print $1}'`
-	echo There were $OPT_COUNT instances of config fragment errors.
-	echo The full list can be found in your kernel src dir at:
+	echo -n "[errors ($OPT_COUNT): "
 	echo $KCONF_FRAG_ERRS | sed 's=^'$LINUX_SRC'/=   ='
+	echo "   There are errors withing the config fragments."
 	echo
 fi
 if [ -n "$verbose" ] && [ -s $KCONF_OVERRIDE ]; then
 	OPT_COUNT=`cat $KCONF_OVERRIDE |grep Value | wc -l | awk '{print $1}'`
-	echo There were $OPT_COUNT kernel config options redefined during processing this BSP.
-	echo These config options are defined in more than one config fragment.
-	echo The full list can be found in your kernel src dir at:
+	echo -n "[redefined ($OPT_COUNT)]: "
 	echo $KCONF_OVERRIDE | sed 's=^'$LINUX_SRC'/=   ='
+	echo "   kernel configuration options were defined in more than one config"
+	echo "   fragment and had their value changed from their initial setting"
 	echo
 fi
 if [ -s $KCONF_REQUIRED_CFG_OVERRIDE ]; then
 	OPT_COUNT=`cat $KCONF_REQUIRED_CFG_OVERRIDE |grep -E "^Value" | wc -l | awk '{print $1}'`
-	echo "There were $OPT_COUNT required kernel config options redefined (and changed)"
-        echo "during processing this BSP. This means that these required values are defined"
-	echo "in multiple fragments and changed from their base value."
-	echo "The full list can be found in your kernel src dir at:"
+	echo -n "[required redefined ($OPT_COUNT)]: "
 	echo "$KCONF_REQUIRED_CFG_OVERRIDE" | sed 's=^'$LINUX_SRC'/=   ='
+	echo "   required kernel config options were redefined (and changed)"
+        echo "   during processing this BSP. This means that required values are"
+	echo "   are changed from their initial value."
 	echo
 fi
 if [ -s $KCONF_REDFINED_AS_BOARD_SPECIFIC ]; then
 	OPT_COUNT=`cat $KCONF_REDFINED_AS_BOARD_SPECIFIC | wc -l | awk '{print $1}'`
-	echo There were $OPT_COUNT kernel config options redefined as board specific.
-	echo This is not an error, but should be noted for future migration purposes.
-	echo The full list can be found in your kernel src dir at:
+	echo -n "[board specific ($OPT_COUNT)]: "
 	echo $KCONF_REDFINED_AS_BOARD_SPECIFIC | sed 's=^'$LINUX_SRC'/=   ='
+	echo "   kernel config options redefined as board specific. This is not an "
+	echo "   error, but should be noted for future migration purposes."
 	echo
 fi
 
 # One could argue that any mismatch is a valid reason to declare failure.
 # If that is what seems appropriate, then replace the sleep with an exit 1
 if [ -s $KCONF_DIR/mismatch.cfg ]; then
-	OPT_COUNT=`grep '^Value' $KCONF_DIR/mismatch.cfg | wc -l | awk '{print $1}'`
-	echo WARNING: There were $OPT_COUNT hardware options requested that do not
-	echo "         "have a corresponding value present in the final \".config\" file.
-	echo "         "This probably means you aren\'t getting the config you wanted.
-	echo The full list can be found in your kernel src dir at:
+	OPT_COUNT=`grep '^Actual value' $KCONF_DIR/mismatch.cfg | wc -l | awk '{print $1}'`
+	echo -n "[mismatch ($OPT_COUNT)]: "
 	echo $KCONF_DIR/mismatch.cfg | sed 's=^'$LINUX_SRC'/=   ='
+	echo "   There were hardware options requested that do not"
+	echo "   have a corresponding value present in the final \".config\" file."
+	echo "   This probably means you aren't getting the config you wanted."
 	echo
-	echo Waiting a second to make sure you get a chance to see this...
-	sleep 1 
 fi
 
 # Missing required options can be errors, warnings .. or something else
 if [ -s $KCONF_DIR/missing_required.cfg ]; then
-	OPT_COUNT=`grep '^Value' $KCONF_DIR/missing_required.cfg | wc -l | awk '{print $1}'`
-	echo "** NOTE: There were $OPT_COUNT required options requested that do not"
-	echo "         have a corresponding value present in the final \".config\" file."
-	echo "         This is a violation of the policy defined by the higher level config"
-	echo "The full list can be found in your kernel src dir at:"
+	OPT_COUNT=`grep '^Actual value' $KCONF_DIR/missing_required.cfg | wc -l | awk '{print $1}'`
+	echo -n "[required ($OPT_COUNT)]: "
 	echo "$KCONF_DIR/missing_required.cfg" | sed 's=^'$LINUX_SRC'/=   ='
+	echo "   There were required options requested that do not"
+	echo "   have a corresponding value present in the final \".config\" file."
+	echo "   This is a violation of the policy defined by the higher level config"
 	if [ -n "$required_is_error" ]; then
 	    exit 1
 	else
