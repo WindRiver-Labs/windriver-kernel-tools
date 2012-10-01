@@ -1176,6 +1176,46 @@ _dump_extended_info()
     _dump "";
 }
 
+
+expand_target()
+{
+    local tgt=$1
+
+    tgt=$(_strip_ext "$tgt" ".$feature_ext")
+    base=`basename $tgt`
+
+    for p in "." "$current_feature_dir" $include_paths; do
+        # target file + default feature extension
+        if [ -f $p/$tgt.$feature_ext ]; then
+            possible=`readlink -f "$p/$tgt.$feature_ext"`
+        # raw target file
+        elif [ -f $p/$tgt ]; then
+            possible=`readlink -f "$p/$tgt"`
+        # special processing test the include directory +
+        # the name of the feature. This saves us doing a massive
+        # set of includes for sub categories includes
+        elif [ -f $p/$tgt/$tgt.$feature_ext ]; then
+            possible=`readlink -f "$p/$tgt/$tgt.$feature_ext"`
+        elif [ -f $p/$tgt/$tgt ]; then
+            possible=`readlink -f "$p/$tgt/$tgt"`
+        # more special processing. test if the included
+        # feature is actually just the name of a directory
+        # AND there is not file with the same name present.
+        # if that is true, then test for:
+        #     <tgt>/<tgt>.extension
+        # in that directory
+        elif [ -f $p/$tgt/$base.$feature_ext ]; then
+            possible=`readlink -f "$p/$tgt/$base.$feature_ext"`
+        elif [ -f $p/$tgt/$base ]; then
+            possible=`readlink -f "$p/$tgt/$base.$feature_ext"`
+        fi
+
+	if [ -n "$possible" ]; then
+	    echo "$possible"
+	fi
+    done
+}
+
 search_include_paths()
 {
     local tgt=$1
@@ -1299,12 +1339,16 @@ compile_files()
                         # this searches the include paths for the missing
 			# feature. But it also passes in all the features
 			# we've processed to ensure that we don't repeat
-			tt=`search_include_paths $t $all_files`
-			if [ -z "$tt" ]; then
-                            # we couldn't find it, is it on an include path?
-			    echo "warning: could not find (or was already included): $t ($current_feature_dir)"
+			feat_name=`expand_target $t`
+
+			if [ -z "$feat_name" ]; then
+			    echo "warning: feature $t was not found ($current_feature_dir)"
 			else
-			    abs="$abs $tt"
+			    echo "$all_files" | grep -q "$feat_name"
+			    if [ $? -eq 0 ]; then
+				echo "NOTE: feature $t is included multiple times ($current_feature_dir)"
+			    fi
+			    abs="$abs $feat_name"
 			fi
 		    done
 		    new_sub="$new_sub $abs"
@@ -1333,6 +1377,7 @@ compile_files()
     files=$all_files
     count=0
     for absfile in $files; do
+	processed_files=""
 	echo $all_processed | grep -q $absfile
 	if [ $? -eq 0 ]; then
 	    continue
@@ -1357,44 +1402,21 @@ compile_files()
 	_dump "# scc version $version"
 	_dump "# scc id $_path_sum"
 
-        # special processing if a nasty patches.list is found
-	if [ "$_basename" = "patches.list" ]; then
-	    _dump "# scc auto generated"
+	to_process=""
 
-	    fname=`echo $_basename | sed 's%^\.%%' | sed 's%\.scc$%%' | \
-                   sed 's%\.%_%g'`
-	    fname="$fname""_""$_path_sum"
+        # output has been redirected to $patch_script
+	set_current_feature "$_basename"
+	process_feature "$absfile" "$_basename"
 
-	    _dump "$fname()"
-	    _dump "{"
-
-	    _dump '   output=`echo $output;'
-	    old_school=`cat $absfile`
-	    for old in $old_school; do
-		_dump "       echo \"$old\""
-	    done
-	    _dump '`;'
-	     
-	    _dump "}"
-	    _dump "# scc entry_func: $fname"
-	else
-	    to_process=""
-	    processed_files=""
-
-            # output has been redirected to $patch_script
-	    set_current_feature "$_basename"
-	    process_feature "$absfile" "$_basename"
-
-	    if [ -n "$to_process" ]; then
-                # dump anything that was picked up in 
-                # process_feature as a dependency
-		_dump "# scc depends: $to_process"
-	    fi
-            # this adds extended information to the output file
-            all_processed="`echo \"$all_processed\"; echo \"$processed_files\"`"
-	    _dump_extended_info "$_basename""_""$_path_sum"
-	    _dump "# .section $_section"
+	if [ -n "$to_process" ]; then
+            # dump anything that was picked up in 
+            # process_feature as a dependency
+	    _dump "# scc depends: $to_process"
 	fi
+        # this adds extended information to the output file
+        all_processed="`echo \"$all_processed\"; echo \"$processed_files\"`"
+	_dump_extended_info "$_basename""_""$_path_sum"
+	_dump "# .section $_section"
 
 	objname=$count-$_basename-$_path_sum.$obj_ext
 	mv $_tmpname "$objname"
