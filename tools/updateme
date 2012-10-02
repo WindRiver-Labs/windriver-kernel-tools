@@ -326,7 +326,7 @@ search_includes_for_defines()
 		for tgt in $define_tgt1 $define_tgt2 $define_tgt3; do
 			if [ -n "$tgt" ]; then
 				max_score=`expr $max_score + 1`
-				f=`grep -l -e 'define.* '$tgt'$' $scc`
+				f=`grep -l -e 'define.*'$tgt'$' $scc`
 				if [ -n "$f" ]; then
 			    	    score=`expr $score + 1`
 				fi
