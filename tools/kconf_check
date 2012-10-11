@@ -89,7 +89,7 @@ QUILT_PC_PAT="$(echo "${QUILT_PC:-.pc}" | sed 's/\./\\&/')"
 # put trailing slashes on exclude dirs.  Ouch.  Dropping down to search in
 # the .git dir would take days...
 find $LINUX_SRC \
-	   -path $LINUX_SRC/$meta_dir -prune				\
+	   -path $LINUX_SRC/$META_DIR -prune				\
 	-o -path $LINUX_SRC/.git -prune				        \
 	-o -path $LINUX_SRC/$QUILT_PC_PAT -prune			\
 	-o -type f -a -name 'Kconfig*' -print |				\
