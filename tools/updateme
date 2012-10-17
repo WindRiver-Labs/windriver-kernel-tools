@@ -318,14 +318,13 @@ search_includes_for_defines()
 		define_tgt3=`echo $defines | cut -d: -f3`
 	fi
 
+	max_score=0
 	sccs_that_define=`find $search_dirs -name '*.scc' \
                                 | xargs grep -l -e 'define.*' | sort | uniq`
 	for scc in $sccs_that_define; do
 		score=0
-		max_score=0
 		for tgt in $define_tgt1 $define_tgt2 $define_tgt3; do
 			if [ -n "$tgt" ]; then
-				max_score=`expr $max_score + 1`
 				f=`grep -l -e 'define.*'$tgt'$' $scc`
 				if [ -n "$f" ]; then
 			    	    score=`expr $score + 1`
@@ -333,7 +332,10 @@ search_includes_for_defines()
 			fi
 		done
 
-		if [ $score -eq $max_score ]; then
+		if [ $score -gt $max_score ]; then
+			found_scc="$scc"
+			max_score=$score
+		elif [ $score -eq $max_score ]; then
 			found_scc="$found_scc $scc"
 		fi
 	done
