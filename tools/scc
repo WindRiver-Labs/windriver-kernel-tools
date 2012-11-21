@@ -482,6 +482,11 @@ kconf()
 	this_frag=`search_include_paths $2`
     fi
 
+    if [ ! -f "$this_frag" ]; then
+	echo "[ERROR] kernel configuration fragment fragment '$2' cannot be found"
+	exit 1
+    fi
+
     if [ "$last_cmd" == "patch" ]; then
         _dump " \\"
 	_dump -n "  echo \"# _kconf $type $this_frag\";"

@@ -1225,6 +1225,11 @@ if [ -n "$_kconf" ]; then
 		fragname=`echo $entry | awk '{print $4}'`
 		reloc_frag=`_strip_common_prefix $fragname`
 
+		if [ ! -f "$fragname" ]; then
+			echo "[ERROR] frag $fragname does not exist"
+			exit 1
+		fi
+
 		if [ x$fragtype = xhardware ]; then
 			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/hdw_frags.txt
 			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
