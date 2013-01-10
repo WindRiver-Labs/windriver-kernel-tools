@@ -1188,8 +1188,14 @@ expand_target()
 
     tgt=$(_strip_ext "$tgt" ".$feature_ext")
     base=`basename $tgt`
+    possible=
 
     for p in "." "$current_feature_dir" $include_paths; do
+
+	if [ -n "$possible" ]; then
+	    continue
+	fi
+
         # target file + default feature extension
         if [ -f $p/$tgt.$feature_ext ]; then
             possible=`readlink -f "$p/$tgt.$feature_ext"`
@@ -1214,11 +1220,11 @@ expand_target()
         elif [ -f $p/$tgt/$base ]; then
             possible=`readlink -f "$p/$tgt/$base.$feature_ext"`
         fi
-
-	if [ -n "$possible" ]; then
-	    echo "$possible"
-	fi
     done
+
+    if [ -n "$possible" ]; then
+	echo "$possible"
+    fi
 }
 
 search_include_paths()
@@ -1322,8 +1328,8 @@ compile_files()
 		    if [ ! -e $s ]; then
 			s=`search_include_paths $s`
 		    fi
-		    current_feature_dir=$(dirname $s)
 
+		    current_feature_dir=$(dirname $s)
 		    # generate the list of files that need to be compiled. 
 		    # We do that by looking for any commands in a given file
 		    # that can trigger another file to be build. Which currently
@@ -1340,7 +1346,7 @@ compile_files()
 
                         # add it again .. :)
 			t="$t"".$feature_ext"
-			 
+
                         # this searches the include paths for the missing
 			# feature. But it also passes in all the features
 			# we've processed to ensure that we don't repeat
