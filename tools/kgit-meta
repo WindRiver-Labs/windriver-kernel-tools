@@ -931,6 +931,7 @@ _mark()
         if [ "$vlevel" -eq 2 ]; then
 	    echo "   mark <-- $n"
 	fi
+	do_pending_patches
     fi
 }
 
