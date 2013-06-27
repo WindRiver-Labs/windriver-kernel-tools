@@ -129,7 +129,7 @@ else
     active_patching=
 fi
 
-# Each BSP gets one of these in wrs/cfg/<BSP>/$fraglist
+# Each BSP gets one of these in $meta/cfg/<BSP>/$fraglist
 fraglist="config_frag.txt"
 
 # yes this is a no-op for now, leaving it in in case
@@ -294,6 +294,40 @@ IFS='
 IFS=$old_ifs
 }
 
+track_patch()
+{
+    patch_name=$1
+    echo "$patch_name" >> $meta_dir/cfg/master_series
+}
+
+# returns 1 if the patch is already tracked, 0 if it isn't
+check_for_tracked_patch()
+{
+    local_name=$1
+    status_file=$2
+    retval=1
+
+    if [ -n "$status_file" ] && [ -e $status_file ]; then
+        grep -q $local_name $status_file
+	if [ $? -ne 0 ]; then
+	    # patch isn't already in the status. push
+	    retval=0
+	fi
+    else
+	touch $status_file
+	retval=0
+    fi
+
+    if [ -e "$meta_dir/cfg/master_series" ]; then
+	grep -q $local_name $meta_dir/cfg/master_series
+	if [ $? -ne 0 ]; then
+	    retval=0
+	fi
+    fi
+
+    return $retval
+}
+
 track_branch()
 {
     branch_name=$1
@@ -305,7 +339,7 @@ track_branch()
 }
 
 # this is responsible for migrating the data from the kernel-cache layer
-# into the wrs/ dir. That is it -- no processing takes place here.
+# into the $meta dir. That is it -- no processing takes place here.
 do_kconf()
 {
     local _cfg_file_dir=`dirname $1`
@@ -367,14 +401,20 @@ generate_branch_name()
     last_passed_branch=$3
 
     all_possible_branches=`cat $meta_dir/meta-series | grep -E "^# _branch_begin" \
-                             | sed 's/^# _branch_begin //'`
+                             | sed 's/^# _branch_begin //' | awk '{ print $1 }'`
     who_is_last_branch=`echo "$all_possible_branches" | tail -1`
 
     if [ -n "$show_inheritance_in_branches" ]; then
    	# if there are more branches to be created, we need to add a /base
 	# onto this branch, or the subsequent ones will have problems.
         if [ "$noinherit" = "f" ]; then
-	    if [ "$who_is_last_branch" != "$suggested_name" ]; then
+
+            # one more check. if the last branch is a branch with an explicit branch
+            # point. We shouldn't do a /base, since that branch may not use our tree
+            # inheirtance structure at all.
+            branch_point=`cat $meta_dir/meta-series | grep -E "^# _branch_begin.*$who_is_last_branch" \
+                             | sed 's/^# _branch_begin //' | awk '{ print $2 }'`
+	    if [ "$who_is_last_branch" != "$suggested_name" ] && [ -z "$branch_point" ]; then
 		suggested_name="$suggested_name/base"
 	    fi
 	fi
@@ -526,7 +566,10 @@ do_branch()
 	noinherit_branches="$noinherit_branches $name"
     fi
 
-    name=`generate_branch_name $name $noinherit $last_branch`
+    # if a branch point was passed, the name is fully qualified in the statement
+    if [ -z "$branchpoint" ]; then
+	name=`generate_branch_name $name $noinherit $last_branch`
+    fi
 
     if [ "$force" = "force" ]; then
 	# if the branches have diverged (i.e. another force) and we don't
@@ -659,16 +702,11 @@ do_patch()
 	name=`echo $name | sed 's%^\./%%g'`
 	if [ -n "$_continue" ]; then
 	    # check to make sure it really is unique
-	    if [ -e $status_file ]; then
-                grep -q $local_name $status_file
-		if [ $? -ne 0 ]; then
-		    # patch isn't already in the status. push
-		    push_patch=t
-		fi
-	    else
-		 touch $status_file
-		 push_patch=t
+	    check_for_tracked_patch $local_name $status_file
+	    if [ $? -eq 0 ]; then
+		push_patch=t
 	    fi
+
 	    if [ -e $series_file ]; then
                 grep -q $local_name $series_file
 		if [ $? -ne 0 ]; then
@@ -750,6 +788,7 @@ do_patch()
 		    ln -sf $name $patches_dir/$sname
 		fi
 		last_patch_to_push=$sname
+		track_patch $sname
 	    else
 		echo "           *  warning: $name not found, not linking"
 	    fi
@@ -812,7 +851,7 @@ do_pending_patches()
 	if [ $push_code -ne 0 ]; then
 	    echo "[ERROR] unable to complete push"
 	    echo "pending patches are:"
-	    guilt unapplied
+	    GUILT_BASE=$meta_dir guilt unapplied
 	    exit 1
 	fi
     fi
@@ -870,43 +909,6 @@ do_git()
 	esac
     fi
 }
-
-# We have a tree, we have a list of fragments.  Now start the whole
-# processing and sanity checking from here.
-do_config_setup()
-{
-    local frags=$1
-    local name=$2
-
-    if [ $vlevel -eq 2 ]; then       
-	echo "[INFO] processing kernel fragments for $name"
-    fi
-
-    git show-ref --quiet --verify -- "refs/heads/$name";
-    if [ $? -ne 0 ]; then
-		git show-ref --quiet --verify -- "refs/heads/$name/base";
-		if [ $? -ne 0 ]; then
-			echo "[ERROR] \"$1\" requires \"$name\", but branch \"$name\" does not exist."
-			exit 1
-		else
-		    name="$name/base"
-		fi
-    fi
-
-    current=`git branch|grep '^\*'|awk '{print $2}'`
-
-    if [ x$name != x$current ]; then
-	echo "[INFO] checking out $name"
-	git checkout -q $name
-	if [ $? -ne 0 ]; then
-		echo "[ERROR] Checkout of $name failed"
-		exit 1;
-	fi
-    fi
-
-    # Things are now good to go for generate_cfg
-}
-
 
 _git()
 {
@@ -1026,6 +1028,8 @@ wrap_meta_series()
     cat $_series | sed -f sed_script.cmds > $_series.wrap
     rm -f sed_script.cmds
 
+    rm -f $meta_dir/cfg/master_series
+
     # now run the series
     source $_series.wrap
 
@@ -1075,13 +1079,10 @@ if [ -n "$_rc_file" ] && [ -e "$_rc_file" ]; then
     done
 fi
 
-if [ -d "wrs" ]; then
-    meta_dir_name=wrs
-    content_branch="wrs_base"
-else
+meta_dir_name=$KMETA
+show_inheritance_in_branches=t
+if [ -z "$meta_dir_name" ]; then
     meta_dir_name=meta
-    content_branch="base"
-    show_inheritance_in_branches=t
 fi
 
 meta_dir=`find_dir $meta_dir_name`
@@ -1152,6 +1153,8 @@ if [ -n "$_patch_apply" ]; then
 	done
     fi
 
+    branch_prep $orig_branch
+
     # pass 1: interpret the meta series
     wrap_meta_series $meta_dir/meta-series
 
@@ -1185,12 +1188,15 @@ fi
 
 #
 # This option (re)generates the kconfig. IMPORTANT:  This is working from
-# the files as they are found in the wrs/ dir now -- the do_kconf() that
+# the files as they are found in the $meta dir now -- the do_kconf() that
 # gets run during the initial pass over from --init puts the files from
-# the kernel-cache into the wrs/ dir.
+# the kernel-cache into the $meta dir.
 #
 if [ -n "$_kconf" ]; then
 	_meta_series=$meta_dir/meta-series
+	KTYPE=`grep '_define KTYPE'    $_meta_series | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+	KMACH=`grep '_define KMACHINE' $_meta_series | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+	KTGT=$KTYPE/$KMACH
 
 	# we need to build our own list of relocation directories
 	rdirs=`cat $_meta_series|grep '^# _reloc_dir' |awk '{print $3}'`
@@ -1206,46 +1212,43 @@ if [ -n "$_kconf" ]; then
 	    echo "[INFO] collecting configs in $_meta_series "
 	fi
 
-	# calling this will leave the tree on the last branch created
-	# by the meta series
-	wrap_meta_series $_meta_series "_branch_begin _force_branch"
-	branchname=`git branch |grep \*|sed 's/^\* //'| sed 's%/base$%%'`
-
-	if [ ! -d "$meta_dir/cfg/$branchname/" ]; then
-	    mkdir -p $meta_dir/cfg/$branchname/
+	if [ ! -d "$meta_dir/cfg/$KTGT/" ]; then
+	    mkdir -p $meta_dir/cfg/$KTGT/
 	fi
 
 	if [ -z "$_continue" ]; then
-	    rm -f $meta_dir/cfg/$branchname/{non_,}hdw_frags.txt
-	    rm -f $meta_dir/cfg/$branchname/$fraglist
-	    frgs=`cat $_meta_series|grep '^# _kconf' |awk '{print $4}'`
-	    for f in $frgs; do
-		reloc_frag=`_strip_common_prefix $f`
-		echo "$reloc_frag" >> $meta_dir/cfg/$branchname/$fraglist
-	    done
-	else
-	    frgs=`cat $_meta_series|grep '^# _kconf' |awk '{print $4}'`
-	    for f in $frgs; do
-		reloc_frag=`_strip_common_prefix $f`
-		echo "$reloc_frag" >> $meta_dir/cfg/$branchname/$fraglist
-	    done
+	    rm -f $meta_dir/cfg/$KTGT/{non_,}hdw_frags.txt
+	    rm -f $meta_dir/cfg/$KTGT/$fraglist
 	fi
         cat $_meta_series | grep '^# _kconf' | while read entry; do
 		fragtype=`echo $entry | awk '{print $3}'`
 		fragname=`echo $entry | awk '{print $4}'`
+		reloc_frag=`_strip_common_prefix $fragname`
+
+		if [ ! -f "$fragname" ]; then
+			echo "[ERROR] frag $fragname does not exist"
+			exit 1
+		fi
+
 		if [ x$fragtype = xhardware ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$branchname/hdw_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/hdw_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
 		elif [ x$fragtype = xnon-hardware ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$branchname/non_hdw_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/non_hdw_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
 		elif [ x$fragtype = xrequired ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$branchname/required_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/required_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
 		elif [ x$fragtype = xoptional ]; then
-			echo `_strip_common_prefix $fragname` >> $meta_dir/cfg/$branchname/optional_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/optional_frags.txt
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
+		elif [ x$fragtype = xmask ]; then
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/masked_frags.txt
+		elif [ x$fragtype = xverify ]; then
+			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/verify_frags.txt
 		else
 			echo "[ERROR] type \"$fragtype\" of file \"$fragname\" is not a supported type"
 			exit 1
 		fi
 	done
-
-	do_config_setup $meta_dir/cfg/$branchname/$fraglist $branchname
 fi

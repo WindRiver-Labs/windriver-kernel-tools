@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Simple script to generate a report on the Wind River Kernel
+# features patched into the kernel. This is used internally
+# by the build system and should not be invoked by hand.
+# 
+
+feature_report_header()
+{
+   rm -f $linux_build_dir/$report_name
+   echo -n "Wind River Linux Feature Report, " > $linux_build_dir/$report_name
+   echo    "generated `date`: " >> $linux_build_dir/$report_name
+   echo    " " >> $linux_build_dir/$report_name
+}
+
+export_sys_info()
+{
+    rm -f $sys_info_header
+    echo "#define WRS_SYS_INFO_SHORTNAME \"$sys_info_board\"" > $sys_info_header
+    echo "#define WRS_SYS_INFO_BSP \"$sys_info_procfam $sys_info_variants\"" >> $sys_info_header
+}
+
+top_build_dir=$1
+linux_build_dir=$2
+linux_version=$3
+sys_info_board=$4
+sys_info_procfam=$5
+sys_info_variants=$6
+
+report_name="wrlinux_kfeat_report"
+sys_info_header="$linux_build_dir/include/linux/wrs_sys_info.h"
+
+feature_report_header
+export_sys_info

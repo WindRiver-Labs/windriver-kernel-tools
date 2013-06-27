@@ -24,13 +24,13 @@
 # 	cd linux-2.6
 #	mkdir .git ; mv * .git
 #	git config core.bare false
-#	git checkout -f wrs_meta
+#	git checkout -f meta
 # Also assumes that current dir is in this linux git repo.
 
 # Return values: zero if a ".config" was created, one otherwise.
 
 CURRENT=`git branch |grep \*|sed 's/^\* //'`
-SCRIPT_DIR=`pwd`/meta/scripts
+SCRIPT_DIR=`dirname $0`
 
 PATH=$PATH:$SCRIPT_DIR
 QUICK=1
@@ -41,6 +41,8 @@ cat << EOF
 
     configme [--audit] [--alldefconfig] [--allnoconfig] [--reconfig] [--o <outdir>] [target] [machine]
 
+    Processes <metadir>/meta-series looking for configuration fragments to collect and process.
+
         audit: do an audit of final .config file
         reconfig: reconfigure an existing build
         target: name of the configuration target (branch)
@@ -50,47 +52,39 @@ EOF
 exit 1
 }
 
-get_branch_name()
-{
-    _meta_series=$1
-
-    branchname=`git branch |grep \*|sed 's/^\* //'| sed 's%/base$%%'`
-
-    echo $branchname
-}
-
 # This is factored out into a function because for a given branch,
 # there may be more than one user (i.e. big endian, little endian,
 # or BSPs that use the same branch but differ only in kernel configs)
 run_board_config()
 {
-    # Can't set these until we've unwound the checkpoint and have wrs data.
+    # Can't set these until we've unwound the checkpoint and have meta data.
     KVER=`cat ./$META_DIR/cfg/kernel-*cache/kver|sed 's/^v//'`
 
-    # Look for standard defines, with compatibility fallbacks
-    KARCH=`grep KARCH $SCC | awk '{print $3}'`
-    if [ -z "$KARCH" ]; then
-	KARCH=`grep WRS_ARCH $SCC | awk '{print $3}'`
-    fi
-    KPROFILE=`grep KMACHINE $SCC | awk '{print $3}'`
-    if [ -z "$KPROFILE" ]; then
-	KPROFILE=`grep WRS_BOARD $SCC | awk '{print $3}'`
-    fi
-    KTYPE=`grep KTYPE $SCC | awk '{print $3}'`
-    if [ -z "$KTYPE" ]; then
-	KTYPE=`grep WRS_KERNEL $SCC | awk '{print $3}'`
+    META=./$META_DIR/meta-series
+
+    if [ ! -f $META ]; then
+	echo Something evil happened, cant find meta=\"$META\"
+	exit 1
     fi
 
-    META=./$META_DIR/meta-series
-    META_ALT=./$META_DIR/cfg/scratch/`basename $SCC .scc`-meta
+    # Look for standard defines, with compatibility fallbacks
+    # In theory, there should never be multiple KARCH lines...
+    KARCH=`grep '^# _define KARCH'    $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+    KTYPE=`grep '^# _define KTYPE'    $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+    KMACH=`grep '^# _define KMACHINE' $META | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
 
     BUILD_DIR=$out_dir
+
+    if [ -z "$machine" ]; then
+	echo Error: machine is undefined
+	return 1
+    fi
+
     CFGFILE=$machine-$target-config-$KVER
 
     if [ "x$KARCH" == "x" ] ; then
-	echo Couldnt determine architecture from file:
-	echo -e \\t$SCC
-	echo Assuming scc is not a valid BSP endpoint...
+	echo Error: Couldnt determine architecture from file:
+	echo -e \\t$META
 	return 1
     fi
 
@@ -100,6 +94,11 @@ run_board_config()
     fi
     if [ $KARCH == "mips64" ]; then
 	KARCH=mips
+    fi
+
+    if [ -z "$BUILD_DIR" ]; then
+	echo No build dir specified.  Use \"-o\" to specify one.
+	return 1
     fi
 
     if [ -z "$reconfig" ] && [ -d $BUILD_DIR ]; then
@@ -117,12 +116,8 @@ run_board_config()
     fi
 
     if [ ! -f $META ]; then
-	if [ ! -f $META_ALT ]; then
-		echo Failed to find meta series $META or $META_ALT
-		return 1
-	else
-		META=$META_ALT
-	fi
+	echo Failed to find meta series $META
+	return 1
     fi
 
     kgit-meta -v -k $META
@@ -131,7 +126,7 @@ run_board_config()
 	return 1
     fi
 
-    KTGT=`get_branch_name $META`
+    KTGT=$KTYPE/$KMACH
     mkdir -p ./$META_DIR/cfg/$KTGT
     if [ $? != 0 ]; then
 	echo Failed to mkdir ./$META_DIR/cfg/$KTGT for config data
@@ -140,6 +135,11 @@ run_board_config()
 
     frags=`cat $META_DIR/cfg/$KTGT/config_frag.txt | sed 's%\(^.*$\)%'$META_DIR/cfg'\1%'`
     pre_config -l $META_DIR/cfg/$KTGT/ $frags > $META_DIR/cfg/$KTGT/config.log 2>&1
+    if [ $? -ne 0 ]; then
+	echo "ERROR: could not sanitize configuration fragments"
+	echo "   errors are logged in `pwd`/$META_DIR/cfg/$KTGT/config.log"
+	exit 1
+    fi
 
     # remove any old assembled debug fragments
     rm -f $BUILD_DIR/.tmp.config*
@@ -174,7 +174,7 @@ run_board_config()
     fi
     echo "[INFO] processing of raw cfg data completed."
     if [ $QUICK -ne 1 ]; then
-	kconf_check $CFGFILE /dev/null `pwd` $BUILD_DIR $KTGT
+	kconf_check $CFGFILE $META `pwd` $BUILD_DIR
     fi
 
 cat << EOF
@@ -239,53 +239,15 @@ if [ -z "$target" ]; then
     target=standard
 fi
 
-META_DIR=meta
-if [ ! -d "meta" ]; then
-    META_DIR=wrs
+META_DIR=$KMETA
+if [ -z "$META_DIR" ]; then
+	META_DIR=meta
 fi
 
-if [ -e $META_DIR/top_tgt ]; then
-    SCC_LIST=`cat $META_DIR/top_tgt`
-else
-    echo "[INFO] Finding machine description for $machine"
-
-    define_tgt1=$machine
-    define_tgt2=$target
-
-    sccs_that_define=`find $META_DIR/cfg -name '*.scc' \
-                        | xargs grep -l -e 'define.*' | sort | uniq`
-    for scc in $sccs_that_define; do
-    	score=0
-    	max_score=0
-    	for tgt in $define_tgt1 $define_tgt2 $define_tgt3; do
-    	    if [ -n "$tgt" ]; then
-    		max_score=`expr $max_score + 1`
-    		f=`grep -l -e 'define.* '$tgt'$' $scc`
-    		if [ -n "$f" ]; then
-    		    score=`expr $score + 1`
-    		fi
-    	    fi
-    	done
-	
-    	if [ $score -eq $max_score ]; then
-    	    found_scc="$found_scc $scc"
-    	fi
-    done
-
-    SCC_LIST=$found_scc
-fi
-
-if [ -z "$SCC_LIST" ]; then
-	echo "Error: No machine description found for $machine"
+echo "[INFO] Configuring target/machine combo: \"$target/$machine\""
+run_board_config
+if [ $? != 0 ]; then
+	echo config of \"$target/$machine\" failed
 	exit 1
 fi
-
-for SCC in $SCC_LIST ; do
-	echo "[INFO] Configuring machine description: "`basename $SCC`
-	run_board_config
-	if [ $? != 0 ]; then
-		echo config of $machine \(`basename $SCC`\) failed
-		exit 1
-	fi
-done
 exit 0

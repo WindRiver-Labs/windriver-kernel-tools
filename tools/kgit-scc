@@ -231,6 +231,7 @@ while [ $# -gt 0 ]; do
                 exit;
                 ;;
         -*)   
+                echo Invalid arg \"$1\".
                 usage
                 exit
                ;;
@@ -242,6 +243,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$1" ]; then
+    echo no args given.  Try \"-h\".
     usage
     exit
 fi
@@ -344,6 +346,8 @@ if [ -z "$resume" ]; then
 	if [ -d $dir ]; then
 	    if [ -e $dir/kver ]; then
 		base_ver=`cat $dir/kver`
+            else
+                echo WARNING: no file $dir/kver to set base version
 	    fi
 
 	    abs_dir=$(cd $dir; pwd)
@@ -361,6 +365,8 @@ if [ -z "$resume" ]; then
 
 	    new_inc_dirs="$new_inc_dirs -I `cd $output/$top_meta_dir/cfg/$last_dir; pwd`"
 	    new_search_dirs="$new_search_dirs `cd $output/$top_meta_dir/cfg/$last_dir; pwd`"
+        else
+            echo WARNING: search dir $dir does not exist
 	fi
     done
 else
@@ -375,6 +381,8 @@ else
 
     if [ -e $d/kver ]; then
 	base_ver=`cat $d/kver`
+    else
+        echo WARNING: no file $d/kver to set base version
     fi
 fi
 inc_dirs=$new_inc_dirs
@@ -624,7 +632,7 @@ if [ -n "$apply" ]; then
 
 	# exec_total was calculuated when we generated all the meta_series
 	total=$exec_total
-		
+	start_branch=`git branch --no-color | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/'`
 	count=1
 	for e in $executables; do
 	    # this will trigger a complete copy of all the config
@@ -670,6 +678,8 @@ if [ -n "$apply" ]; then
 		echo "[INFO] Updating cfg files (kgit-meta --update --kconf $meta_dir/$e-meta)"
 		kgit-meta --update --kconf $meta_dir/$e-meta
 	    fi
+	    
+	    git checkout $start_branch
 
 	    let count=$count+1
 	done

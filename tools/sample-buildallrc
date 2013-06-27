@@ -1,0 +1,92 @@
+#
+# Sample RC file for buildall.  Copy to $HOME/.buildallrc and
+# customize to suit your local setup.
+#
+
+# How many jobs for make -jN and typical background nice level
+JOBS=16
+NICE=10
+
+# Point at the (bare) tree you want to source for build test.
+#	TREE=~/workdir/foo.git
+#		or
+#	TREE=git://some.site.com/linux.git
+# i.e. both absolute paths and git repos are valid inputs
+TREE=git://git.yoctoproject.org/linux-yocto-3.4
+
+# If TREE isn't an absolute path, then you really want to point at
+# an existing git repo on disk to save cloning a gig of shared objects.
+REFERENCE=~/git/linux
+
+# Set this if you want to be mailed about failures.
+# MAILTO="username@someplace.com"
+
+# Set this if you want to randomize builds instead of alphabetical order.
+# RANDOMIZE=yes
+
+# More control over what gets built and what doesn't can be done
+# with the following black/white lists and black/white regex.
+# Any/all can be specified, and they are treated as a logical
+# AND of each (i.e. a meta must "pass" each criteria to get used).
+#
+# List of meta series you want to skip
+# BLACKLIST="mti-malta64-be-preempt-rt-meta ti-omap3-standard-meta"
+
+# A regex that can blacklist a whole family
+# BLACKREGEX="routerstation.*"
+
+# List of explicit meta that are to be built (all others skipped)
+# WHITELIST="common-pc-preempt-rt-meta atom-pc-standard-meta"
+
+# A regex that can whitelist a whole family
+# WHITEREGEX=".*-preempt-rt-meta"
+
+# Set this if you want to limit the total number of builds.
+# MAX_BUILDS=5
+
+# Set this if you are working from a freshly generated tree, and
+# there is no need to regenerate the meta-series (since they can't
+# be stale).  Don't set this if you don't understand the above.
+# NOMETAGEN=1
+
+# Sane defaults, based on what yocto/poky generates in the sysroot.
+PPC_CROSS_COMPILE=powerpc-poky-linux-
+MIPS_CROSS_COMPILE=mips-poky-linux-
+ARM_CROSS_COMPILE=arm-poky-linux-gnueabi-
+X86_CROSS_COMPILE=i586-poky-linux-
+X86_64_CROSS_COMPILE=x86_64-poky-linux-
+
+# If you've already built one of each arch, you'll have these toolchains
+# already, and can just change POKY to point at your workspace.  The
+# commeted out ones (armv5, core2) are largely duplicates (of armv7, i586).
+#
+POKY=~/poky
+#
+# PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/armv5te-poky-linux-gnueabi
+PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/armv7a-vfp-neon-poky-linux-gnueabi
+PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/i586-poky-linux
+# PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/core2-poky-linux
+PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/x86_64-poky-linux
+PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/mips32-poky-linux
+PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/ppc603e-poky-linux
+
+# Only enable this if you've installed & configured distcc (and ccache)
+# with suitable symlinks in e.g. $HOME/bin for all the different gcc
+# that point at /usr/bin/ccache (and increase the cache size; default=1M)
+# CCACHE_PREFIX=distcc
+
+#
+# No real need to change/customize anything below here.
+#
+
+# Name of dir created for containing checked out src to build from
+LINUX_SRC=linux
+
+# Name of dir created for bare clone used as base tree.
+DEFKERN=default_kernel
+
+# Where all the build output lands
+BUILDALL=kernel_builds
+
+# If non fatal warnings are issued by buildall, they are here.
+WARN_LOG=warnings.txt

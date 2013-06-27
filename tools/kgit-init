@@ -279,7 +279,11 @@ if [ -n "$new_repo" ]; then
 		fi
 	    else
 		git checkout -q -f $checkout_opts master
-		git reset --hard $initial_branch_point
+		git reset --hard $initial_branch_point &> /dev/null
+		if [ $? -ne 0 ]; then
+		    echo "[ERROR] branch point $initial_branch_point is not valid"
+		    exit 1
+		fi
 	    fi
 	else
 	    echo "[ERROR] Could not find source repository $src. remote"

@@ -20,29 +20,28 @@
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 #  See the GNU General Public License for more details.
 
-
 usage() {
 	echo "Usage: $0 [OPTIONS] [CONFIG [...]]"
 	echo "  -h    display this help text"
 	echo "  -m    only merge the fragments, do not execute the make command"
 	echo "  -n    use allnoconfig instead of alldefconfig"
 	echo "  -d    debug. Don't cleanup temporary files"
+	echo "  -r    list redundant entries when merging fragments"
+	echo "  -O    dir to put generated output files"
 }
+
+clean_up() {
+	rm -f $TMP_FILE
+	exit
+}
+if [ -z "$DEBUG" ]; then
+	trap clean_up HUP INT TERM
+fi
 
 MAKE_FLAG=true
 ALLTARGET=alldefconfig
-
-# There are two variables that impact where the .config will be dropped, 
-# O= and KBUILD_OUTPUT=. So we'll respect those variables and use them as
-# an output directory as well. These two variables are not propagating
-# automatically to the kernel build, so always explicitly setting O=
-# and passing it to the kernel build ensures that it is respected.
-if [ -n "$KBUILD_OUTPUT" ]; then
-	O=$KBUILD_OUTPUT
-fi
-if [ -z "$O" ]; then
-	O=.
-fi
+WARNREDUN=false
+OUTPUT=.
 
 while true; do
 	case $1 in
@@ -65,24 +64,50 @@ while true; do
 		usage
 		exit
 		;;
+	"-r")
+		WARNREDUN=true
+		shift
+		continue
+		;;
+	"-O")
+		if [ -d $2 ];then
+			OUTPUT=$(echo $2 | sed 's/\/*$//')
+		else
+			echo "output directory $2 does not exist" 1>&2
+			exit 1
+		fi
+		shift 2
+		continue
+		;;
 	*)
 		break
 		;;
 	esac
 done
 
-clean_up() {
-       rm -f $TMP_FILE
-       exit
-}
-if [ -z "$DEBUG" ]; then
-	trap clean_up SIGHUP SIGINT SIGTERM
-fi
+INITFILE=$1
+shift;
 
+# There are two variables that impact where the .config will be dropped, 
+# O= and KBUILD_OUTPUT=. So we'll respect those variables and use them as
+# an output directory as well. These two variables are not propagating
+# automatically to the kernel build, so always explicitly setting O=
+# and passing it to the kernel build ensures that it is respected.
+if [ "$OUTPUT" = "." ]; then
+	if [ -n "$KBUILD_OUTPUT" ]; then
+		OUTPUT=$KBUILD_OUTPUT
+	fi
+	if [ -n "$O" ]; then
+		OUTPUT=$O
+	fi
+fi
 
 MERGE_LIST=$*
 SED_CONFIG_EXP="s/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/p"
-TMP_FILE=$(mktemp $O/.tmp.config.XXXXXXXXXX)
+TMP_FILE=$(mktemp $OUTPUT/.tmp.config.XXXXXXXXXX)
+
+echo "Using $INITFILE as base"
+cat $INITFILE > $TMP_FILE
 
 # Merge files, printing warnings on overrided values
 for MERGE_FILE in $MERGE_LIST ; do
@@ -99,6 +124,8 @@ for MERGE_FILE in $MERGE_LIST ; do
 			echo Previous  value: $PREV_VAL
 			echo New value:       $NEW_VAL
 			echo
+			elif [ "$WARNREDUN" = "true" ]; then
+			echo Value of $CFG is redundant by fragment $MERGE_FILE:
 			fi
 			sed -i "/$CFG[ =]/d" $TMP_FILE
 		fi
@@ -107,9 +134,9 @@ for MERGE_FILE in $MERGE_LIST ; do
 done
 
 if [ "$MAKE_FLAG" = "false" ]; then
-	cp $TMP_FILE $O/.config
+	cp $TMP_FILE $OUTPUT/.config
 	echo "#"
-	echo "# merged configuration written to $O/.config (needs make)"
+	echo "# merged configuration written to $OUTPUT/.config (needs make)"
 	echo "#"
 	if [ -z "$DEBUG" ]; then
 		clean_up
@@ -120,14 +147,14 @@ fi
 # Use the merged file as the starting point for:
 # alldefconfig: Fills in any missing symbols with Kconfig default
 # allnoconfig: Fills in any missing symbols with # CONFIG_* is not set
-make KCONFIG_ALLCONFIG=$TMP_FILE O=$O $ALLTARGET
+make KCONFIG_ALLCONFIG=$TMP_FILE O=$OUTPUT $ALLTARGET
 
 
 # Check all specified config values took (might have missed-dependency issues)
 for CFG in $(sed -n "$SED_CONFIG_EXP" $TMP_FILE); do
 
-	REQUESTED_VAL=$(sed -n "$SED_CONFIG_EXP" $TMP_FILE | grep -w -e "$CFG")
-	ACTUAL_VAL=$(sed -n "$SED_CONFIG_EXP" $O/.config | grep -w -e "$CFG")
+	REQUESTED_VAL=$(grep -w -e "$CFG" $TMP_FILE)
+	ACTUAL_VAL=$(grep -w -e "$CFG" $OUTPUT/.config)
 	if [ "x$REQUESTED_VAL" != "x$ACTUAL_VAL" ] ; then
 		echo "Value requested for $CFG not in final .config"
 		echo "Requested value:  $REQUESTED_VAL"

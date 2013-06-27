@@ -2,7 +2,7 @@
 
 #  (kgit), (mux and demux for kgit* tools)
 
-#  Copyright (c) 2008-2010 Wind River Systems, Inc.
+#  Copyright (c) 2008-2012 Wind River Systems, Inc.
 
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License version 2 as
@@ -28,15 +28,7 @@ usage()
 {
 cat <<EOF
 
- kgit -h --version <repo>
-
-   If a potential repository is passed the type is output.
-   
-     git:       generic git repository
-     wgit:      Wind River git repository
-     wgit-bare: Wind River bare git repository
-     tarball:   a tar or tgz of the repo base
-     invalid:   unknown repository type
+ kgit -h --version <command>
 
    -h :  this message
    -v :  version
@@ -78,52 +70,7 @@ if [ "`basename $0`" = "kgit" ]; then
 
             # this is not reached because of the exec
             die "Exec failed! Something is terribly wrong!"
-        else
-	    if [ -d $arg ]; then
-		# this looks odd, but it's the easiest way to 
-		# test if a directory was passed that could either be
-		# a bare git repo (no .git) or a git repo (subdir .git)
-		# always strip a .git (if present), test for it and update
-		# the arg to be our best guess for something valid for
-		# --git-dir
-		arg=`echo $arg | sed 's%\.git$%%'`
-		if [ -d $arg/.git ]; then
-		    arg=$arg/.git
-		    bare=false
-		else
-		    bare=true
-		fi
-
-		# there are 3 return codes from this
-		#   0: yes this is a git repo and has our ref
-		#   1: yes this is a git rep, but doesn't have our ref
-		#   128: that was some random directory
-		git --git-dir=$arg show-ref wrs_base > /dev/null 2>&1
-		ret=$?
-		case $ret in
-		    0) if [ "$bare" = "true" ]; then
-				echo wgit-bare
-			else
-				echo wgit
-			fi
-			;;
-		    1) echo git;;
-		    128) echo invalid ;;
-		esac
-		exit 0
-	    elif [ -e $arg ]; then
-		case $arg in
-		    *.gz|*.bz2|*.tgz)  echo tarball ;;
-		esac
-		exit 0            
-	    else
-		case $arg in
-                    git://*) echo git ;;
-		    *) exit 1 ;;
-		esac
-		exit 0
-	    fi
-        fi
+	fi
     fi
 
     # no args passed or invalid command entered, just output help summary
