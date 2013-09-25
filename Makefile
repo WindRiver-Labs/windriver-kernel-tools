@@ -2,7 +2,7 @@ kern_tools_LIST = kgit kgit-init kgit-meta \
 		  kgit-checkpoint kgit-clean \
 		  generate_cfg kconf_check configme \
 		  createme updateme patchme get_defconfig scc \
-		  pre_config merge_config.sh spp kgit-s2q
+		  pre_config merge_config.sh spp kgit-s2q kfeat
 
 INSTALL=install
 RM=rm
