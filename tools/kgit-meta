@@ -777,7 +777,7 @@ do_patch()
                       if [ -f links ]; then
 			  rm -f links
 		      fi 
-		      ln -s $relative_dir/meta/cfg links)
+		      ln -s $relative_dir/$meta_dir_name/cfg links)
 		fi
 
 		if [ ! -d $patches_dir/$patches_links_dirname ]; then
