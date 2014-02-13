@@ -362,7 +362,7 @@ search_includes_for_defines()
 		score=0
 		for tgt in $define_tgt1 $define_tgt2 $define_tgt3; do
 			if [ -n "$tgt" ]; then
-				f=`grep -l -e '^[[:space:]]*define.*'$tgt'$' $scc`
+				f=`grep -l -e '^[[:space:]]*define.*'$tgt'[[:space:]]*\$' $scc`
 				if [ -n "$f" ]; then
 			    	    score=`expr $score + 1`
 				fi
