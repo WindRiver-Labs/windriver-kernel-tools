@@ -44,11 +44,6 @@ REFERENCE=~/git/linux
 # Set this if you want to limit the total number of builds.
 # MAX_BUILDS=5
 
-# Set this if you are working from a freshly generated tree, and
-# there is no need to regenerate the meta-series (since they can't
-# be stale).  Don't set this if you don't understand the above.
-# NOMETAGEN=1
-
 # Sane defaults, based on what yocto/poky generates in the sysroot.
 PPC_CROSS_COMPILE=powerpc-poky-linux-
 MIPS_CROSS_COMPILE=mips-poky-linux-

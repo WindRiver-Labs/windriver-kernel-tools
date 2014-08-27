@@ -135,10 +135,16 @@ fi
 # Check to see if the checkpoint branch contains a directory of the
 # same name. If it does, that's the base of what we'll capture in the
 # checkpoint. If it doesn't, fallback to the 'meta' default.
-meta_dir=meta
-git show $checkpoint_branch:$checkpoint_branch &> /dev/null
-if [ $? -eq 0 ]; then
+
+git show-ref --quiet --verify -- "refs/heads/$checkpoint_branch"
+if [ $? -eq 1 ]; then
     meta_dir=$checkpoint_branch
+else
+    meta_dir=meta
+    git show $checkpoint_branch:$checkpoint_branch &> /dev/null
+    if [ $? -eq 0 ]; then
+	meta_dir=$checkpoint_branch
+    fi
 fi
 
 if [ -z "$checkpoint_branch" ]; then
@@ -161,26 +167,71 @@ if [ -n "$checkpointing" ]; then
     if [ $? -eq 1 ]; then
         # create a meta-information branch
 	git checkout --orphan $checkpoint_branch
-        # stage the requested files/directories
-	git rm -rfq `ls | grep -v $checkpoint_branch`
-	git rm -f $checkpoint_branch/.gitignore
+	if [ $? != 0 ]; then
+		echo "[ERROR]: orphan branch creation failed"
+		exit -1
+	fi
+        # remove the unwanted files/directories
+	git rm -rfq `ls -d .gitignore .mailmap * | grep -v $checkpoint_branch`
+	if [ $? != 0 ]; then
+		echo "[ERROR]: git rm -rfq failed"
+		exit -1
+	fi
     else
 	git checkout $checkpoint_branch
+	if [ $? != 0 ]; then
+		echo "[ERROR]: checkpoint branch checkout failed"
+		exit -1
+	fi
     fi
 
     echo "kernel repository meta data base" >> README.txt
     git add -f README.txt
+    if [ $? != 0 ]; then
+	echo "[ERROR]: git add failed"
+	exit -1
+    fi
     git commit -s -m "meta: add README"
+    if [ $? != 0 ]; then
+	echo "[ERROR]: git commit README failed"
+	exit -1
+    fi
     
     # either we just created an orphan branch .. or it already
     # existed. Either way, iterate the directories that should be added to
     # the branch and add them.
-    for d in $dirs_to_checkpoint; do       
+    for d in $dirs_to_checkpoint; do
+	count=`git ls-files -dmo $d | wc -l`
+	if [ $count -eq 0 ]; then
+	    # if there aren't any untracked files, then there's nothing to commit
+	    continue
+	fi
 	git add -f $d
+	if [ $? != 0 ]; then
+		echo "[ERROR]: git add dirs failed"
+		exit -1
+	fi
 	if [ -f "$d/00-README" ]; then
-	    git commit -q -s -F "$d/00-README"  &> /dev/null
+	    TXT=`mktemp`
+	    echo "checkpoint dir: $d" > $TXT
+	    echo >> $TXT
+	    echo "What follows is the 00-README from dir \"$d\"." >> $TXT
+	    echo >> $TXT
+	    echo " ----------------------" >> $TXT
+	    cat $d/00-README >> $TXT
+	    echo " ----------------------" >> $TXT
+	    git commit -q -s -F $TXT  &> /dev/null
+	    if [ $? != 0 ]; then
+		echo "[ERROR]: git commit 00-README failed"
+		exit -1
+	    fi
+	    rm -f $TXT
 	else
 	    git commit -q -s -m "checkpoint dir: $d" &> /dev/null
+	    if [ $? != 0 ]; then
+		echo "[ERROR]: git commit checkpoint dir failed"
+		exit -1
+	    fi
 	fi
     done
 
@@ -192,11 +243,19 @@ if [ -n "$checkpointing" ]; then
     git show-ref --quiet --verify -- "refs/tags/checkpoint-$checkpoint_branch"
     if [ $? -eq 1 ]; then
 	git tag checkpoint-$checkpoint_branch
+        if [ $? != 0 ]; then
+		echo "[ERROR]: git tag checkpoint failed"
+		exit -1
+        fi
     fi
 
     # return to the current branch
     if [ "$checkpoint_branch" != "$current_branch" ]; then
 	git checkout -q $current_branch
+        if [ $? != 0 ]; then
+		echo "[ERROR]: git checkout current failed"
+		exit -1
+        fi
     fi
 
 else # restoring ...
@@ -224,14 +283,43 @@ else # restoring ...
     fi
 
     # save the old branch, and make the data untracked.
-    git checkout -q -b $checkpoint_branch-temp $checkpoint_branch
+    git checkout -q -f -b $checkpoint_branch-temp $checkpoint_branch
+    if [ $? != 0 ]; then
+	echo "[ERROR]: git checkout -q -b failed"
+	exit -1
+    fi
     git reset --mixed $merge_base
+    if [ $? != 0 ]; then
+	echo "[ERROR]: git reset mixed failed"
+	exit -1
+    fi
+
+    # At this point, we've reset the branch and the meta data is now
+    # reset and can persist when we change the branch, but we need to
+    # make a copy of them to *something* else, or git will complain about
+    # them being clobbered when we switch away.
+    if [ ! -d ".$checkpoint_branch" ]; then
+	mv $checkpoint_branch .$checkpoint_branch
+    fi
 
     # delete our working branch, and return to the original one
-    git checkout -q $current_branch
+    if [ "$checkpoint_branch" != "$current_branch" ]; then
+	git checkout -f -q $current_branch
+	if [ $? != 0 ]; then
+	    echo "[ERROR]: git checkout -q failed"
+	    exit -1
+	fi
+    else
+	git checkout -f -q master
+	if [ $? != 0 ]; then
+	    echo "[ERROR]: git checkout -q failed"
+	    exit -1
+	fi
+    fi
+
     git branch -D $checkpoint_branch-temp
-
-    mv $checkpoint_branch .$checkpoint_branch
+    if [ $? != 0 ]; then
+	echo "[ERROR]: git branch -D failed"
+	exit -1
+    fi
 fi
-
-

@@ -97,6 +97,14 @@ fi
 src=$1
 dest=$2
 
+meta_dir=$KMETA
+checkpoint_branch=$KMETA
+
+if [ -z "$meta_dir" ]; then
+	meta_dir=meta
+	checkpoint_branch=meta
+fi
+
 if [ ! -d "$dest" ] || [ -n "$force" ]; then
 
     if [ -d "$dest" ]; then
@@ -104,22 +112,23 @@ if [ ! -d "$dest" ] || [ -n "$force" ]; then
 	rm -rf "$dest"
     fi
 
-    meta_dir=$KMETA
-    checkpoint_branch=$KMETA
-    if [ -z "$meta_dir" ]; then
-	meta_dir=meta
-	checkpoint_branch=meta
+    SRCTMP=`mktemp -d --tmpdir=./`
+    if [ $? != 0 ]; then
+	echo "[ERROR] mktemp failed"
+	exit -1
     fi
 
-    if [ ! -d "$src.tmp" ]; then
-	if [ -n "$verbose" ]; then
-	    echo "[INFO] making working copy of $src as $src.tmp"
-	fi
-	cp -r $src $src.tmp
+    if [ -n "$verbose" ]; then
+	    echo "[INFO] making working copy of $src in $SRCTMP"
+    fi
+    cp -a $src $SRCTMP
+    if [ $? != 0 ]; then
+	echo "[ERROR] making working copy of $src failed"
+	exit -1
     fi
 
-    # now we only operate on src.tmmp
-    src=$src.tmp
+    # now we only operate on temp copy
+    src=$SRCTMP/$src
 
     x=`cd $src; git show-ref checkpoint_start`
     if [ -z "$x" ]; then
@@ -131,6 +140,10 @@ if [ ! -d "$dest" ] || [ -n "$force" ]; then
 		echo "[INFO] checkpointing repository"
 	    fi
 	    (cd $src; kgit checkpoint -b $checkpoint_branch -c)
+	    if [ $? != 0 ]; then
+		echo "[ERROR] checkpoint failed"
+		exit 1
+	    fi
 	    auto_checked=t
 	else
 	    if [ -z "$force" ]; then
@@ -167,7 +180,11 @@ if [ -d $dest ]; then
 fi
 
 if [ -n "$auto_checked" ]; then
-    (cd $src; kgit checkpoint -r)
+    (cd $src; kgit checkpoint -b $checkpoint_branch -r)
+    if [ $? != 0 ]; then
+	echo "[ERROR] checkpoint restore failed"
+	exit 1
+    fi
 fi
 
 if [ -n "$force" ]; then

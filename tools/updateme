@@ -233,9 +233,11 @@ migrate_cfg() {
 	# check to see if a .scc file already includes the fragment
 	gen_feature=
 	if [ -n "$scc_files" ]; then
-		grep $b $scc_files -q
-		if [ $? -ne 0 ]; then
+		matches=`grep -l $b $scc_files`
+		if [ -z "$matches" ]; then
 			gen_feature=t
+		else
+			feat_name="$matches"
 		fi
 	else
 		gen_feature=t
@@ -249,12 +251,16 @@ migrate_cfg() {
 		fi
 		echo "kconf required $b" >> $meta_dir/cfg/scratch/obj/$dirname/$gen_feature_name
 
-		# we've generated the feature, make sure it can be found
-		add_search_include_dir $meta_dir/cfg/scratch/obj/$dirname
-		echo $extra_features | grep -q $gen_feature_name
-		if [ $? -ne 0 ]; then
-			extra_features="$extra_features `abs_path $meta_dir/cfg/scratch/obj/$dirname/$gen_feature_name`"
-		fi
+		feat_name="$meta_dir/cfg/scratch/obj/$dirname/$gen_feature_name"
+	fi
+	
+	# we've generated the feature, make sure it can be found
+	add_search_include_dir $meta_dir/cfg/scratch/obj/$dirname
+
+	abs_feature_path=`abs_path $feat_name`
+	echo $extra_features | grep -q $abs_feature_path
+	if [ $? -ne 0 ]; then
+		extra_features="$extra_features $abs_feature_path"
 	fi
 }
 
@@ -263,24 +269,29 @@ migrate_patch() {
 	p=$1
 
 	dirname=`dirname $p`
+	b=`basename $p`
+
 	if [ ! -d $meta_dir/cfg/scratch/obj/$dirname ]; then
 		mkdir -p $meta_dir/cfg/scratch/obj/$dirname
 	fi
 
-	if [ -n "$verbose" ]; then
-		echo "migrating patch: `basename $p` to $meta_dir/cfg/scratch/obj/$dirname"
+	if [ ! -e "$meta_dir/cfg/scratch/obj/$dirname/$b" ]; then
+		if [ -n "$verbose" ]; then
+			echo "migrating patch: $b to $meta_dir/cfg/scratch/obj/$dirname"
+		fi
+		cp -r $dirname/* $meta_dir/cfg/scratch/obj/$dirname
 	fi
-	cp -r $dirname/* $meta_dir/cfg/scratch/obj/$dirname
 
 	scc_files=`find $meta_dir/cfg/scratch/obj/$dirname -maxdepth 1 -type f -name *.scc`
-	b=`basename $p`
 
 	# check to see if a .scc file already includes the patch
 	gen_feature=
 	if [ -n "$scc_files" ]; then
-		grep $b $scc_files -q
-		if [ $? -ne 0 ]; then
+		matches=`grep -l $b $scc_files`
+		if [ -z "$matches" ]; then
 			gen_feature=t
+		else
+			feat_name="$matches"
 		fi
 	else
 		gen_feature=t
@@ -294,12 +305,16 @@ migrate_patch() {
 		fi
 		echo "patch $b" >> $meta_dir/cfg/scratch/obj/$dirname/$gen_feature_name
 
-		# we've generated the feature, make sure it can be found
-		add_search_include_dir $meta_dir/cfg/scratch/obj/$dirname
-		echo $extra_features | grep -q $gen_feature_name
-		if [ $? -ne 0 ]; then
-			extra_features="$extra_features `abs_path $meta_dir/cfg/scratch/obj/$dirname/$gen_feature_name`"
-		fi
+		feat_name="$meta_dir/cfg/scratch/obj/$dirname/$gen_feature_name"
+	fi
+	
+	# we've generated the feature, make sure it can be found
+	add_search_include_dir $meta_dir/cfg/scratch/obj/$dirname
+
+	abs_feature_path=`abs_path $feat_name`
+	echo $extra_features | grep -q $abs_feature_path
+	if [ $? -ne 0 ]; then
+		extra_features="$extra_features $abs_feature_path"
 	fi
 }
 

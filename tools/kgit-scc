@@ -2,7 +2,7 @@
 
 #  (kgit-scc), (process a series of .scc files into a full repository)
 
-#  Copyright (c) 2008-2011 Wind River Systems, Inc.
+#  Copyright (c) 2008-2014 Wind River Systems, Inc.
 
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License version 2 as
@@ -41,7 +41,8 @@ usage()
 cat <<EOF
 
  kgit-scc [-e <dir>] [--prep <feat1 feat2 feat3>]
-          [-v] [-h] [-j <count>] [-I<dirs to search>] <input> <output>
+          [-v] [-h] [-j <count>] [-I<dirs to search>] 
+          [--meta-repo <repo>] <input> <output>
 
   A front end to the 'series code compiler (scc)'. It facilitiates
   using scc to build a complete repository or to search/interpret 
@@ -56,6 +57,7 @@ cat <<EOF
    --prep:    : features that should be used to prep a repository build
    --meta-dir <metadir>:  dir with meta content (default "meta")
    --meta-branch <metabr>:  branch to store meta content (default "meta")
+   --meta-repo <metarepo>:  git repository that stores meta data
 
    -I <dirs>  : directories to search for .scc files
    -i <dirs>  : directories to serach for source repos
@@ -208,6 +210,10 @@ while [ $# -gt 0 ]; do
 		;;
 	--meta-dir)
 		top_meta_dir="$2"
+		shift
+		;;
+	--meta-repo)
+		meta_repo="$2"
 		shift
 		;;
 	--meta-branch)
@@ -365,7 +371,7 @@ fi
 
 # find the base version from the kernel-caches
 new_inc_dirs=
-nwe_search_dirs=
+new_search_dirs=
 echo " phase # $phase_count) migrating include dirs"
 let phase_count=$phase_count+1
 
@@ -456,14 +462,52 @@ if [ -n "$init" ]; then
 		echo "ERROR. Unable to clone source repository $input"
 		exit 1
 	    fi
-	    (cd $output; git config --global guilt.autotag 0)
-	    # tidy up any files init left uncommitted
+
 	    (cd $output;
 		for f in `git ls-files -m`; do
 		    git add $f
 		done
 		git commit -s -m "kgit: creating baseline state"
 	    )
+
+	    if [ -n "$meta_repo" ]; then
+		if [ -d "$output/$top_meta_dir/" ]; then
+			abs_dir=$(cd $meta_repo; pwd)
+
+			echo "[INFO] clearing existing meta data, and cloning repository"
+			old_top_dir=`pwd` 
+			cd $output
+			rm -rf $top_meta_dir
+
+			old_dir=`pwd`
+			cd $abs_dir
+			count=`git ls-files -dmo | wc -l`
+                        if [ $count -gt 0 ]; then
+			    echo "[ERROR] source meta repository is not clean, aborting"
+			    exit 1
+			fi
+			cd $old_dir
+			
+			git fetch $abs_dir master:$meta_branch
+			git checkout $meta_branch
+
+			git filter-branch --prune-empty --tree-filter "if [ ! -e $top_meta_dir/cfg/$meta_repo ]; then mkdir -p $top_meta_dir/cfg/$meta_repo; git ls-tree --name-only \$GIT_COMMIT | xargs -I files mv files $top_meta_dir/cfg/$meta_repo; fi"
+			git checkout master			
+
+			kgit-checkpoint -r -b $meta_branch
+			cd $old_top_dir
+
+			# fix search and inc dirs for the new, in-tree location			
+			top_meta_dir=".$top_meta_dir"
+			search_dirs="$new_search_dirs `cd $output/$top_meta_dir/cfg/$meta_repo; pwd`"
+			inc_dirs=""
+			for x in $search_dirs; do
+			    inc_dirs="$inc_dirs -I $x"
+			done
+			exec_dir=.$meta_dir/obj
+			meta_dir=.$meta_dir
+		fi
+	    fi
 	fi
 	let phase_count=$phase_count+1
     fi

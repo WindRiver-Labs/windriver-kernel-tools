@@ -364,6 +364,9 @@ if [ $? != 0 ]; then
 fi
 $MYPATH/kgit-checkpoint -r > /dev/null 2>&1
 
+# since we are no longer on meta branch, meta dir will be preceeded by a dot
+META_DIR=".$META_DIR"
+
 for i in `cat $META_LIST| awk '{print $4}'` ; do
 	KMACHINE=`grep $i $META_LIST | awk '{print $1}'`
 	ARCH=`grep $i $META_LIST | awk '{print $3}'`
@@ -414,18 +417,13 @@ for i in `cat $META_LIST| awk '{print $4}'` ; do
 		fi
 	fi
 
-	# Use "updateme" to generate a meta series.  However,
-	# generating meta-series is timewise expensive.  If we just created
-	# a tree, we know they aren't stale and can just use them.
-	if [ -z "$NOMETAGEN" ]; then
-		$UPDATEME -DKDESC=$KMACHINE:$KTYPE $KARCH $KMACH > updateme.log 2>&1
-		if [ $? != 0 ]; then
-			echo Generation of meta series from scc failed for $SCC
-			echo See updateme.log for details
-			exit 1
-		fi
-		rm -f updateme.log
+	$UPDATEME -DKDESC=$KMACHINE:$KTYPE $KARCH $KMACH > updateme.log 2>&1
+	if [ $? != 0 ]; then
+		echo Generation of meta series from scc failed for $SCC
+		echo See updateme.log for details
+		exit 1
 	fi
+	rm -f updateme.log
 
 	if [ ! -f $METAPATH ]; then
 		echo Cant find meta series for $i

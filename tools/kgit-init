@@ -72,6 +72,10 @@ clean_tgt_repo()
 	for br in `git branch | grep -v '\* master$'`
 	do
 	    git branch -D $br > /dev/null
+	    if [ $? != 0 ]; then
+		echo "[ERROR]: delete of branch $br failed"
+		exit -1
+	    fi
 	done
     fi
 }
@@ -266,6 +270,10 @@ if [ -n "$new_repo" ]; then
 		# layering on 1k+ of patches makes auto gc inevitable/annoying
 		git config gc.auto 0
 		git checkout -q -f $checkout_opts master
+		if [ $? != 0 ]; then
+			echo "[ERROR] git checkout -q -f master failed"
+			exit -1
+		fi
 	    fi
 
 	    if [ -n "$clean" ]; then
@@ -290,12 +298,20 @@ if [ -n "$new_repo" ]; then
 		else
 	     	    # change the type of repo ...
 	     	    git checkout -f $content_branch
+		    if [ $? != 0 ]; then
+			echo "[ERROR] git checkout -f content failed"
+			exit -1
+		    fi
 	     	    existing_repo=t
 	     	    new_repo=
 	     	    existing_repo_no_metadata=
 		fi
 	    else
 		git checkout -q -f $checkout_opts master
+		if [ $? != 0 ]; then
+			echo "[ERROR] git checkout -qf master failed"
+			exit -1
+		fi
 		git reset --hard $initial_branch_point &> /dev/null
 		if [ $? -ne 0 ]; then
 		    echo "[ERROR] branch point $initial_branch_point is not valid"
@@ -341,6 +357,10 @@ if [ -n "$new_repo" ]; then
 	if [ -n "$init_creates_content" ]; then
 	    git add .gitignore 
             git commit -m "gitignore: adding base exclusions"
+	    if [ $? != 0 ]; then
+		echo "[ERROR] git commit gitignore failed"
+		exit -1
+	    fi
 	fi
     else
 	touch .gitignore
@@ -351,12 +371,24 @@ if [ -n "$new_repo" ]; then
 	git add -f .create_stamp
 	git add -f .gitignore
 	git commit -q -m "$message"
+	if [ $? != 0 ]; then
+		echo "[ERROR] git commit create_stamp failed"
+		exit -1
+	fi
     fi
 
     git checkout -q $content_branch
+    if [ $? != 0 ]; then
+	echo "[ERROR] git checkout -q content_branch failed"
+	exit -1
+    fi
 fi
 
 if [ -n "$existing_repo" ]; then
     # this is an old repository, check if we should be restoring a checkpoint
-    kgit-checkpoint -r
+    kgit-checkpoint -b $meta_branch -r
+    if [ $? != 0 ]; then
+	echo "[ERROR] kgit checkpoint restore failed"
+	exit -1
+    fi
 fi
