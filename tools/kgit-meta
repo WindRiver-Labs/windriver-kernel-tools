@@ -36,7 +36,7 @@ cat <<EOF
 
  kgit-meta [--init] [--kconf] [--apply|--patch] [--continue]
            [--update] [--rc=<file>] [--stop_at=<patch>] [--skip=<patch>] 
-           [--gen] [--dump] [-v] [-h] <meta-series>
+           [--dump] [-v] [-h] <meta-series>
 
    <meta-series>: required if --apply or --kconf or --patch is used
 
@@ -54,10 +54,7 @@ cat <<EOF
                processing. --kconf --update will trigger an update
                of all the fragments in the repo AND setup the 
                fragment processing.
-     --gen: a git tree is being generated from a meta data respository,
-            ensure that all patches are validated.
      --skip: during application, skip a particular patch
-
    -h: help
    -v: verbose
 
@@ -91,9 +88,6 @@ while [ $# -gt 0 ]; do
 	--skip)
 		_skip=$2
 		shift
-		;;
-	--gen)
-		treegen=t
 		;;
 	-f|--force)
 		_force=t
@@ -526,9 +520,6 @@ do_branch()
     flags=
     name=
 
-    # a running total used to know when we are on the leaf node
-    branch_count=$[$branch_count + 1]
-
     for a in $args; do
 	case $a in
 	    -*) flags="$flags $a" ;;
@@ -676,12 +667,6 @@ do_pending_patches()
     # if there isn't a series file, or we haven't seen any "patch" commands
     # there's nothing to push, so exit early
     if [ -z "$series_file" ] || [ -z "$last_patch_to_push" ]; then
-	return
-    fi
-
-    # if we aren't doing a treegen, then we can bail out early if our
-    # current branch isn't the leaf node/final branch
-    if [ -z "$treegen" ] && [ $branch_count != $total_branches ]; then
 	return
     fi
 
@@ -958,8 +943,6 @@ wrap_meta_series()
     rm -f sed_script.cmds
 
     rm -f $meta_dir/cfg/master_series
-
-    total_branches=`cat $_series.wrap |grep ^_branch_begin |wc -l`
 
     # now run the series
     source $_series.wrap
