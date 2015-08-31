@@ -683,10 +683,12 @@ do_pending_patches()
     if [ -n "$verbose" ]; then
 	flags="-v"
     fi
-	
-    patch_flags="-a"
 
-    eval "KMETA=$meta_dir kgit-s2q $flags --gen --patches `dirname $series_file` $patch_flags $_redir"
+    if [ -n "_$continue" ]; then
+        flags="$flags -a"
+    fi
+
+    eval "KMETA=$meta_dir kgit-s2q -v -v --gen --patches `dirname $series_file` $patch_flags $_redir"
     if [ $? -ne 0 ]; then
 	exit 1
     fi
@@ -844,18 +846,24 @@ _git()
 
 _mark()
 {
-    n=$1
-    a=$2
+    input="$@"
 
-    if [ "$a" = "start" ]; then
-	do_pending_patches
-	if [ "$vlevel" -eq 2 ]; then
-	    echo "   mark --> $n"
-	fi
+    echo $input | grep -q "patching start"
+    if [ $? -eq 0 ]; then
+        active_patching="t"
     else
-        if [ "$vlevel" -eq 2 ]; then
-	    echo "   mark <-- $n"
-	fi
+        a=`echo $input | cut -d' ' -f2`
+        n=`echo $input | cut -d' ' -f1`
+        if [ "$a" = "start" ]; then
+	    do_pending_patches
+	    if [ "$vlevel" -eq 2 ]; then
+	        echo "   mark --> $n"
+	    fi
+        else
+            if [ "$vlevel" -eq 2 ]; then
+	        echo "   mark <-- $n"
+	    fi
+        fi
     fi
 }
 

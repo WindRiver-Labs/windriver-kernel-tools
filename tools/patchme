@@ -113,7 +113,7 @@ do_init() {
 }
 
 do_apply() {
-	kgit-meta -v --continue --apply $meta_series
+	kgit-meta -v -v --apply $meta_series
 	if [ $? -ne 0 ]; then
 	    echo "ERROR. could not update git tree"
 	    exit 1
