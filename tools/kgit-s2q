@@ -265,6 +265,7 @@ cat <<EOF
 EOF
 }
 
+AUTORESUME=""
 quilt_author=""
 while test $# != 0
 do
