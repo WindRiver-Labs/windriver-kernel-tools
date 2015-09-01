@@ -406,6 +406,13 @@ if [ -z "$resume" ]; then
 else
     # resuming
     old_pwd=`pwd`
+
+    if [ -n "$meta_repo" ]; then
+	top_meta_dir=".$top_meta_dir"
+	exec_dir=.$meta_dir/obj
+	meta_dir=.$meta_dir
+    fi
+
     if [ ! -d $output/$top_meta_dir/cfg/ ]; then
 	echo ERROR: something evil happened: $output/$top_meta_dir/cfg/ is gone
 	exit 1
@@ -680,9 +687,9 @@ if [ -n "$apply" ]; then
 		fi
             fi
 	    if [ -n "$verbose" ]; then
-		echo "running: KMETA=$top_meta_dir kgit-meta $vflags $extra --apply $meta_dir/$e-meta"
+		echo "running: KMETA=$top_meta_dir kgit-meta $vflags $extra --gen --apply $meta_dir/$e-meta"
 	    fi
-	    KMETA=$top_meta_dir kgit-meta $vflags $extra --apply $meta_dir/$e-meta
+	    KMETA=$top_meta_dir kgit-meta $vflags $extra --gen --apply $meta_dir/$e-meta
 
 	    if [ $? -ne 0 ]; then
 		echo "ERROR. Could not apply meta series $meta_dir/$e-meta"

@@ -52,14 +52,120 @@ EOF
 exit 1
 }
 
+clean_path()
+{
+    _p=$1
+
+    _p=`echo $_p | sed 's%//%/%g' | sed 's%\\.\/%%g'`
+
+    # double check our efforts
+    while :
+    do
+        case $_p in
+            # disable the check for trailing slash and removal. We want this
+            # to be present, and we really only care about double //
+            #*/) _p=${_p%/}
+            #	;;
+
+            *//*) _p=`echo $_p | sed s%//%/%g`
+                ;;
+
+            *) break
+                ;;
+        esac
+    done
+
+    echo $_p
+}
+
+# removes any common prefixes from a name (path, patch, etc). With
+# these removed, the resulting name is now relative to a set of
+# search paths, and can be found later.
+_strip_common_prefix()
+{
+    in_name=$1
+
+    # this takes an input name and searches all known paths.
+    # the relocation that removes the MOST from the original is
+    # the one we want, since it is the best match by definition
+    out_len=${#in_name}
+    relocated_name=$in_name
+    for r in $rdirs; do
+        r=`clean_path $r`
+        t=`echo $in_name | sed s%$r%%`
+        this_len=${#t}
+        if [ $this_len -lt $out_len ]; then
+            relocated_name=$t
+            out_len=$this_len
+        fi
+    done
+
+    echo "/$relocated_name"
+}
+
+gather_fragments() {
+    _meta_series=$META_DIR/meta-series
+    KTYPE=`grep '_define KTYPE'    $_meta_series | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+    KMACH=`grep '_define KMACHINE' $_meta_series | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
+    KTGT=$KTYPE/$KMACH
+
+    # Each BSP gets one of these in $meta/cfg/<BSP>/$fraglist
+    fraglist="config_frag.txt"
+
+    # we need to build our own list of relocation directories
+    rdirs=`cat $_meta_series|grep '^# _reloc_dir' |awk '{printf "%s%s",$3,"/ " }'`
+
+    if [ -n "$verbose" ]; then
+        echo "[INFO] collecting configs in $_meta_series "
+    fi
+
+    if [ ! -d "$META_DIR/cfg/$KTGT/" ]; then
+        mkdir -p $META_DIR/cfg/$KTGT/
+    fi
+
+    if [ -z "$_continue" ]; then
+        rm -f $META_DIR/cfg/$KTGT/{non_,}hdw_frags.txt
+        rm -f $META_DIR/cfg/$KTGT/$fraglist
+    fi
+    cat $_meta_series | grep '^# _kconf' | while read entry; do
+        fragtype=`echo $entry | awk '{print $3}'`
+        fragname=`echo $entry | awk '{print $4}'`
+        reloc_frag=`_strip_common_prefix $fragname`
+
+        if [ ! -f "$fragname" ]; then
+            echo "[ERROR] frag $fragname does not exist"
+            exit 1
+        fi
+
+        if [ x$fragtype = xhardware ]; then
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/hdw_frags.txt
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/$fraglist
+        elif [ x$fragtype = xnon-hardware ]; then
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/non_hdw_frags.txt
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/$fraglist
+        elif [ x$fragtype = xrequired ]; then
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/required_frags.txt
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/$fraglist
+        elif [ x$fragtype = xoptional ]; then
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/optional_frags.txt
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/$fraglist
+        elif [ x$fragtype = xmask ]; then
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/masked_frags.txt
+        elif [ x$fragtype = xverify ]; then
+            echo "$reloc_frag" >> $META_DIR/cfg/$KTGT/verify_frags.txt
+        else
+            echo "[ERROR] type \"$fragtype\" of file \"$fragname\" is not a supported type"
+            exit 1
+        fi
+    done
+}
+
+
 # This is factored out into a function because for a given branch,
 # there may be more than one user (i.e. big endian, little endian,
 # or BSPs that use the same branch but differ only in kernel configs)
 run_board_config()
 {
-    # Can't set these until we've unwound the checkpoint and have meta data.
-    KVER=`cat ./$META_DIR/cfg/kernel-*cache/kver|sed 's/^v//'`
-
     META=./$META_DIR/meta-series
 
     if [ ! -f $META ]; then
@@ -80,7 +186,7 @@ run_board_config()
 	return 1
     fi
 
-    CFGFILE=$machine-$target-config-$KVER
+    CFGFILE=$machine-$target-config
 
     if [ "x$KARCH" == "x" ] ; then
 	echo Error: Couldnt determine architecture from file:
@@ -120,11 +226,7 @@ run_board_config()
 	return 1
     fi
 
-    kgit-meta -v -k $META
-    if [ $? != 0 ]; then
-	echo Error running the meta series for collecting config data
-	return 1
-    fi
+    gather_fragments
 
     KTGT=$KTYPE/$KMACH
     mkdir -p ./$META_DIR/cfg/$KTGT
@@ -133,6 +235,11 @@ run_board_config()
 	return 1
     fi
 
+    if [ ! -e "$META_DIR/cfg/$KTGT/config_frag.txt" ]; then
+	echo "[ERROR] No configuration fragments found, this typically is a misconfigured BSP."
+	echo "        Check that fragments (or defconfigs) are referenced by the board description."
+	return 1
+    fi
     frags=`cat $META_DIR/cfg/$KTGT/config_frag.txt | sed 's%\(^.*$\)%'$META_DIR/cfg'\1%'`
     pre_config -l $META_DIR/cfg/$KTGT/ $frags > $META_DIR/cfg/$KTGT/config.log 2>&1
     if [ $? -ne 0 ]; then
@@ -239,30 +346,39 @@ if [ -z "$target" ]; then
     target=standard
 fi
 
-# find the meta directory
-meta_dir()
+get_meta_dir()
 {
-    # first check to see if there's a directory of the same name
-    # as the meta branch. That's the first choice. If it doesn't exist
-    # check the meta branch name a .$meta_branch, and finally fall back
-    # to .meta if everything fails
-    if [ -n "$META_BRANCH" ]; then
-	if [ -d "$META_BRANCH" ]; then
-	    META_DIR="$META_BRANCH"
-	elif [ -d ".$META_BRANCH" ]; then
-	    META_DIR=".$META_BRANCH"
-	fi
+    # if there's already a located and logged meta directory, just use that and
+    # return. Otherwise, we'll look around to see what we can find.
+    if [ -d ".metadir" ]; then
+        md=`cat .metadir`
+        echo $md
+        return
     fi
-    if [ -z "$META_DIR" ]; then
-	META_DIR=`ls -d .meta* | head -1`
-	if [ -z "$META_DIR" ]; then
-	    META_DIR=".meta"
+
+    # determine the meta directory name
+    meta_dir_options=`git ls-files -o --directory`
+    for m in $meta_dir_options; do
+	if [ -d "$m/cfg" ]; then
+	    md=`echo $m | sed 's%/%%'`
 	fi
+    done
+
+    # store our results where other scripts can quickly find the answer
+    if [ -n "$md" ]; then
+        echo "$md" > .metadir
+    else
+        mkdir ".$meta_branch"
+        md=".$meta_branch"
+        echo ".$meta_branch" > .metadir
     fi
+
+    # return the directory to he caller
+    echo $md
 }
 
-META_BRANCH=$KMETA
-meta_dir
+meta_branch=$KMETA
+META_DIR=`get_meta_dir`
 
 echo "[INFO] Configuring target/machine combo: \"$target/$machine\""
 run_board_config

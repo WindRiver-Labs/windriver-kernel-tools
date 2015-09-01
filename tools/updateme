@@ -39,30 +39,43 @@ cat << EOF
 EOF
 }
 
-# find the meta directory
-meta_dir()
+get_meta_dir()
 {
-    # first check to see if there's a directory of the same name
-    # as the meta branch. That's the first choice. If it doesn't exist
-    # check the meta branch name a .$meta_branch, and finally fall back
-    # to .meta if everything fails
-    if [ -n "$meta_branch" ]; then
-	if [ -d "$meta_branch" ]; then
-	    meta_dir="$meta_branch"
-	elif [ -d ".$meta_branch" ]; then
-	    meta_dir=".$meta_branch"
-	fi
+    # if there's already a located and logged meta directory, just use that and
+    # return. Otherwise, we'll look around to see what we can find.
+    if [ -d ".metadir" ]; then
+        md=`cat .metadir`
+        echo $md
+        return
     fi
-    if [ -z "$meta_dir" ]; then
-	meta_dir=`ls -d .meta* | head -1`
-	if [ -z "$meta_dir" ]; then
-	    meta_dir=".meta"
+
+    # determine the meta directory name
+    meta_dir_options=`git ls-files -o --directory`
+    for m in $meta_dir_options; do
+	if [ -d "$m/cfg" ]; then
+	    md=`echo $m | sed 's%/%%'`
 	fi
+    done
+
+    # store our results where other scripts can quickly find the answer
+    if [ -n "$md" ]; then
+        echo "$md" > .metadir
+    else
+        mkdir ".$meta_branch"
+        md=".$meta_branch"
+        echo ".$meta_branch" > .metadir
     fi
+
+    # return the directory to he caller
+    echo $md
 }
 
-meta_branch=$KMETA
-meta_dir
+if [ -n "$KMETA" ]; then
+    meta_branch=$KMETA
+else
+    meta_branch=meta
+fi
+meta_dir=`get_meta_dir`
 
 if [ -z "$1" ]; then
 	usage
@@ -432,7 +445,7 @@ do_update() {
 	top_tgt=`search_includes_for_defines "$KDESC"`
 
 	# check to see that a matching KMACHINE was found
-	grep -q -e "^[[:space:]]*define[[:space:]]*KMACHINE[[:space:]]*$kmachine[[:space:]]*\$" $top_tgt
+	grep -q -e "^[[:space:]]*define[[:space:]]*KMACHINE[[:space:]]*$kmachine[[:space:]]*\$" $top_tgt /dev/null
 	if [ $? -ne 0 ]; then
 	    top_tgt=""
 	fi
@@ -491,6 +504,7 @@ do_update() {
 	    scc --force -o ../$ktgt-meta $includes $top_tgt $extra_features $addon_features
 	    if [ $? -ne 0 ]; then
 		echo "ERROR. A meta series could not be created for $top_tgt"
+		exit 1
 	    fi
 	)
 }

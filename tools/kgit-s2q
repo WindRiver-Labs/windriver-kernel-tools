@@ -28,6 +28,7 @@ cat <<EOF
     --patches:   directory containing the series file to use
     --current:   show top currently applied patch
     --annotated: the series is annotated, use the annotations for auto resume
+    --fuzzy:     match autoresume on fuzzy heuristics (i.e. subject only)
     -c:          number of commits to test when autoresuming
     -a:          autoresume series after last sucessfully applied patch
     -i:          interactively prompt if commit information is missing
@@ -143,11 +144,19 @@ next_patch()
 				fi
 			elif [ $i = "$MAYBE_START" ]; then
 					FENCE_POST=$i
-					if [ -n "$VERBOSE" ]; then
-						echo "[WARNING] Subject matched, but diffstat did not. Continuing anyway."
+					# fuzzy match means that we'll let a subject that maches, but not the diffstat
+					# be our fencepost. Otherwise, we keep looking.
+					if [ -n "$FUZZY_MATCH" ]; then
+						if [ -n "$VERBOSE" ]; then
+							echo "[WARNING] Subject matched, but diffstat did not. Fuzzy matching for autoresume"
+						fi
+						rm -f $DS1 $DS2 $DS3 $DS4
+						return
+					else
+						if [ -n "$VERBOSE" ]; then
+							echo "[WARNING] Subject matched, but diffstat did not, not autoresuming"
+						fi
 					fi
-					rm -f $DS1 $DS2 $DS3 $DS4
-					return
 			fi
 		done
 
@@ -160,11 +169,12 @@ next_patch()
 		merge_base=`git merge-base HEAD master`
 		# dump all of the real commits on the branch from the head commit to the merge base
 		# get their patch IDs
-		git rev-list --no-merges --first-parent $merge_base..HEAD | xargs git show | git patch-id  | cut -f1 -d' ' > $DS2
+		# git rev-list --no-merges --first-parent $merge_base..HEAD | xargs git show | git patch-id  | cut -f1 -d' ' > $DS2
+		git rev-list --no-merges $merge_base..HEAD | xargs git show | git patch-id  | cut -f1 -d' ' > $DS2
 
 		# Dump all of the subjects as well
 		echo "" > $DS4
-		for j in `git rev-list --no-merges --first-parent $merge_base..HEAD`; do
+		for j in `git rev-list --no-merges $merge_base..HEAD`; do
 			git format-patch --stdout $j~..$j  | \
 				git mailinfo -b /dev/null /dev/null | grep Subject: | sed 's/Subject: *//' >> $DS4
 		done
@@ -300,6 +310,9 @@ do
 	--annotated)
 		ANNOTATED_SERIES=1
 		;;
+        --fuzzy)
+		FUZZY_MATCH=1
+		;;
 	--help|-h)
 		usage
 		exit
@@ -324,20 +337,40 @@ if [ -n "$1" ]; then
 	AUTORESUME=
 fi
 
-META=$KMETA
-if [ -z "$META" ]; then
-	ls -d meta* 2> /dev/null
-	if [ $? -eq 0 ]; then
-		META=`ls -d meta* | head -1`
+
+# find the meta directory
+get_meta_dir()
+{
+    # if there's already a located and logged meta directory, just use that and
+    # return. Otherwise, we'll look around to see what we can find.
+    if [ -d ".metadir" ]; then
+        md=`cat .metadir`
+        echo $md
+        return
+    fi
+
+    # determine the meta directory name
+    meta_dir_options=`git ls-files -o --directory`
+    for m in $meta_dir_options; do
+	if [ -d "$m/cfg" ]; then
+	    md=`echo $m | sed 's%/%%'`
 	fi
-	ls -d .meta* 2> /dev/null
-	if [ $? -eq 0 ]; then
-		META=`ls -d .meta* | head -1`
-	fi
-	if [ -z "$META" ]; then
-		META=.meta
-	fi
-fi
+    done
+
+    # store our results where other scripts can quickly find the answer
+    if [ -n "$md" ]; then
+        echo "$md" > .metadir
+    else
+        mkdir ".$meta_branch"
+        md=".$meta_branch"
+        echo ".$meta_branch" > .metadir
+    fi
+
+    # return the directory to he caller
+    echo $md
+}
+
+META=`get_meta_dir`
 BRANCH=`get_branch`
 
 # Quilt Author

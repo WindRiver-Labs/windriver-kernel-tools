@@ -117,7 +117,7 @@ metaize()
 		version=`grep -E "^VERSION =" Makefile | cut -d\= -f2 | sed 's/ //g'`
 		patchlevel=`grep -E "^PATCHLEVEL =" Makefile | cut -d\= -f2 | sed 's/ //g'`
 		sublevel=`grep -E "^SUBLEVEL =" Makefile | cut -d\= -f2 | sed 's/ //g'`
-		echo -n "v" >> $meta_dir/cfg/kernel-cache/kver
+		echo -n "v" > $meta_dir/cfg/kernel-cache/kver
 		echo -n "$version" >> $meta_dir/cfg/kernel-cache/kver
 		echo -n "." >> $meta_dir/cfg/kernel-cache/kver
 		echo -n "$patchlevel" >> $meta_dir/cfg/kernel-cache/kver
@@ -131,26 +131,36 @@ metaize()
 	fi
 }
 
-# find the meta directory
-meta_dir()
+get_meta_dir()
 {
-    # first check to see if there's a directory of the same name
-    # as the meta branch. That's the first choice. If it doesn't exist
-    # check the meta branch name a .$meta_branch, and finally fall back
-    # to .meta if everything fails
-    if [ -n "$meta_branch" ]; then
-	if [ -d "$meta_branch" ]; then
-	    meta_dir="$meta_branch"
-	elif [ -d ".$meta_branch" ]; then
-	    meta_dir=".$meta_branch"
-	fi
+    # if there's already a located and logged meta directory, just use that and
+    # return. Otherwise, we'll look around to see what we can find.
+    if [ -d ".metadir" ]; then
+        md=`cat .metadir`
+        echo $md
+        return
     fi
-    if [ -z "$meta_dir" ]; then
-	meta_dir=`ls -d .meta* | head -1`
-	if [ -z "$meta_dir" ]; then
-	    meta_dir=".meta"
+
+    # determine the meta directory name
+    meta_dir_options=`git ls-files -o --directory`
+    for m in $meta_dir_options; do
+	if [ -d "$m/cfg" ]; then
+	    md=`echo $m | sed 's%/%%'`
 	fi
+    done
+
+    # if no meta dir was found, we'll take the default
+    if [ -z "$md" ]; then
+        md=".$default_meta_branch"
     fi
+
+    # store our results where other scripts can quickly find the answer
+    if [ -n "$md" ]; then
+        echo "$md" > .metadir
+    fi
+
+    # return the directory to he caller
+    echo $md
 }
 
 # restore the checkpoint. This routine supports two types of meta
@@ -172,15 +182,7 @@ decheckpoint()
 	case `check_repo identify` in
 		meta-data)
 	       		repo=meta-data
-			# Is the meta-data merged out to the other branches?
-			# If so that means that we don't need to undo the
-			# checkpoint. We can tell by counting how many
-			# contain the meta data. If it's 2 or less, then we
-			# need to restore the checkpoint.
-			branch_count=`git branch --contains $meta_branch | wc -l`
-			if [ $branch_count -le 2 ]; then
-				kgit-checkpoint -r -b $meta_branch
-			fi
+			kgit-checkpoint -r -b $meta_branch
 			;;
 		external)
 			if [ -n "$must_have_meta" ]; then
@@ -192,7 +194,7 @@ decheckpoint()
 	esac
 
 	# set the meta dir
-	meta_dir
+	meta_dir=`get_meta_dir`
 }
 
 # checks and sets the defconfig for the build

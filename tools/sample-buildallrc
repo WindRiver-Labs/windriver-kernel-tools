@@ -65,10 +65,16 @@ PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/x86_64-poky-linux
 PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/mips32-poky-linux
 PATH=$PATH:$POKY/build/tmp/sysroots/x86_64-linux/usr/bin/ppc603e-poky-linux
 
-# Only enable this if you've installed & configured distcc (and ccache)
-# with suitable symlinks in e.g. $HOME/bin for all the different gcc
-# that point at /usr/bin/ccache (and increase the cache size; default=1M)
-# CCACHE_PREFIX=distcc
+# Alternatively, we can build meta-toolchain for each arch and install
+# from build/tmp/deploy/sdk -- default install location is shown:
+
+POKY=/opt/poky/1.7
+PATH=$PATH:$POKY/sysroots/x86_64-pokysdk-linux/usr/bin/arm-poky-linux-gnueabi
+PATH=$PATH:$POKY/sysroots/x86_64-pokysdk-linux/usr/bin/mips-poky-linux
+PATH=$PATH:$POKY/sysroots/x86_64-pokysdk-linux/usr/bin/powerpc-poky-linux-gnuspe
+PATH=$PATH:$POKY/sysroots/x86_64-pokysdk-linux/usr/bin/i586-poky-linux
+PATH=$PATH:$POKY/sysroots/x86_64-pokysdk-linux/usr/bin/powerpc-poky-linux
+PATH=$PATH:$POKY/sysroots/x86_64-pokysdk-linux/usr/bin/x86_64-poky-linux
 
 #
 # No real need to change/customize anything below here.
