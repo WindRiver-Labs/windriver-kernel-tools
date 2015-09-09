@@ -676,7 +676,7 @@ do_pending_patches()
 
     # if we aren't doing a treegen, then we can bail out early if our
     # current branch isn't the leaf node/final branch
-    if [ -z "$treegen" ] && [ $branch_count != $total_branches ]; then
+    if [ -z "$treegen" -a "$branch_count" != "$total_branches" ]; then
 	return
     fi
 
