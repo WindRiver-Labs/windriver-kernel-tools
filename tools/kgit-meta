@@ -676,8 +676,33 @@ do_pending_patches()
 
     # if we aren't doing a treegen, then we can bail out early if our
     # current branch isn't the leaf node/final branch
-    if [ -z "$treegen" -a "$branch_count" != "$total_branches" ]; then
-	return
+    if [ -z "$active_patching" ]; then
+        if [ -z "$treegen" -a "$branch_count" != "$total_branches" ]; then
+	    return
+        fi
+    fi
+
+    patch_fencepost="$first_patch_to_push"
+    if [ -e "$meta_dir/.last_patch" ]; then
+
+        sentinel=`cat $meta_dir/.last_patch`
+        if [ -n "$sentinel" ]; then
+            grep -q $sentinel $series_file
+            if [ $? -eq 0 ]; then
+                # the sentinel patch is in the series .. but is it the last patch in the
+                # series ? If it is the last patch, we'll use that as the "sentinel" and 
+                # skip everything, since the series is fully applied
+                lines_after=`grep -A1 $sentinel $series_file`
+                if [ -z "$lines_after" ]; then
+                    if [ -n "$verbose" ]; then
+                        echo "Last patch sentinel file detected ($meta_dir/.last_patch)."
+                        echo "Patching will resume from that point: $sentinel"
+                    fi
+
+                    patch_fencepost="$sentinel"
+                fi
+            fi
+        fi
     fi
 
     if [ -n "$verbose" ]; then
@@ -688,11 +713,12 @@ do_pending_patches()
         flags="$flags -a"
     fi
 
-    eval "KMETA=$meta_dir kgit-s2q -v -v --gen --patches `dirname $series_file` $patch_flags $_redir"
+    eval "KMETA=$meta_dir kgit-s2q -v -v --gen --patches `dirname $series_file` $patch_flags -- $patch_fencepost $_redir"
     if [ $? -ne 0 ]; then
 	exit 1
     fi
 
+    echo "$last_patch_to_push" > $meta_dir/.last_patch
     last_patch_to_push=""
 }
 
@@ -778,6 +804,10 @@ do_patch()
 
 	    if [ -n "$added_to_series" ]; then
 		track_patch $sname
+	    fi
+
+	    if [ -z "$last_patch_to_push" ]; then
+		first_patch_to_push=$sname
 	    fi
 	    last_patch_to_push=$sname
 
@@ -871,8 +901,10 @@ _patch()
 {   
     # if we aren't doing a treegen, then we can bail out early if our
     # current branch isn't the leaf node/final branch
-    if [ -z "$treegen" ] && [ $branch_count != $total_branches ]; then
-	return
+    if [ -z "$active_patching" ]; then
+        if [ -z "$treegen" -a "$branch_count" != "$total_branches" ]; then
+	    return
+        fi
     fi
 
     if [ -n "$_stop_at" ]; then

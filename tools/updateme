@@ -260,7 +260,7 @@ migrate_cfg() {
 		gen_feature_name="gen_`echo $dirname | sed 's%/%%g'`_desc.scc"
 
 		if [ -n "$verbose" ]; then
-			echo "generating auto feature: $gen_feature_name"
+			echo "migrate cfg: generating auto feature: $gen_feature_name"
 		fi
 		echo "kconf required $b" >> $meta_dir/cfg/scratch/obj/$dirname/$gen_feature_name
 
@@ -314,7 +314,7 @@ migrate_patch() {
 		gen_feature_name="gen_`echo $dirname | sed 's%/%%g'`_desc.scc"
 
 		if [ -n "$verbose" ]; then
-			echo "generating auto feature: $gen_feature_name"
+			echo "migrate patch: generating auto feature: $gen_feature_name"
 		fi
 		echo "patch $b" >> $meta_dir/cfg/scratch/obj/$dirname/$gen_feature_name
 
