@@ -156,7 +156,7 @@ fi
 rm -f $KCONF_DIR/avail_hardware.cfg
 for i in `cat $KCONF_DIR/hardware.kcf` ; do
 	if [ -f $LINUX_SRC/$i ] ; then
-		cat $LINUX_SRC/$i | grep '^\(menu\)*config ' | \
+		cat $LINUX_SRC/$i | grep '^\(menu\)*config[ |'$'\t]' | \
 			awk '{print "CONFIG_"$2}' >> $KCONF_DIR/avail_hardware.cfg
 	fi
 done
@@ -177,7 +177,7 @@ rm -f $KCONF_DIR/avail_hardware.cfg~
 
 rm -f $KCONF_DIR/all.cfg
 for i in `cat $KCONF_DIR/all.kcf` ; do
-	cat $LINUX_SRC/$i | grep '^[ 	]*\(menu\)*config ' | \
+	cat $LINUX_SRC/$i | grep '^[ 	]*\(menu\)*config[ |'$'\t]' | \
 		awk '{print "CONFIG_"$2}' >> $KCONF_DIR/all.cfg
 done
 mv -f $KCONF_DIR/all.cfg $KCONF_DIR/all.cfg~
