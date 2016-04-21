@@ -661,6 +661,14 @@ _strip_common_prefix()
 	    relocated_name=$t
 	    out_len=$this_len
 	fi
+	# add a trailing slash to get corner cases where one may
+	# have been added or not dropped
+	t=`echo $in_name/ | sed s%$r%%`
+	this_len=${#t}
+	if [ $this_len -lt $out_len ]; then
+	    relocated_name=$t
+	    out_len=$this_len
+	fi
     done
 
     echo "/$relocated_name"
