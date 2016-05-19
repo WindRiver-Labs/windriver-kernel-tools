@@ -117,7 +117,7 @@ metaize()
 		version=`grep -E "^VERSION =" Makefile | cut -d\= -f2 | sed 's/ //g'`
 		patchlevel=`grep -E "^PATCHLEVEL =" Makefile | cut -d\= -f2 | sed 's/ //g'`
 		sublevel=`grep -E "^SUBLEVEL =" Makefile | cut -d\= -f2 | sed 's/ //g'`
-		echo -n "v" >> $meta_dir/cfg/kernel-cache/kver
+		echo -n "v" > $meta_dir/cfg/kernel-cache/kver
 		echo -n "$version" >> $meta_dir/cfg/kernel-cache/kver
 		echo -n "." >> $meta_dir/cfg/kernel-cache/kver
 		echo -n "$patchlevel" >> $meta_dir/cfg/kernel-cache/kver
