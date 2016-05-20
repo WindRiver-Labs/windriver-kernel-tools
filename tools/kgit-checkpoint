@@ -110,47 +110,59 @@ fi
 
 # save this so we can go back later ...
 current_branch=`get_current_git_branch`
+checkpoint_branch=
 
-# The (optional) checkpoint tag tells us two things:
-#  - the tree has been checkpointed (obviously)
-#  - the branch that contains the checkpoint
-# And it is of the format:
-#  - 'checkpoint-<branch_name>'
-check_refs=`git tag | grep checkpoint- | head -n1`
-if [ -n "$check_refs" ]; then
-    checkpoint_branch=`echo $check_refs | cut -d- -f2`
-    verify_branch=`git show-ref $checkpoint_branch`
-    checkpoint_tag_name=$check_refs
-    if [ -z "$verify_branch" ]; then
-	checkpoint_branch=
-	checkpoint_tag_name=
+get_meta_dir()
+{
+    meta_branch=$1
+
+    # if there's already a located and logged meta directory, just use that and
+    # return. Otherwise, we'll look around to see what we can find.
+    if [ -f ".metadir" ]; then
+        md=`cat .metadir`
+        echo $md
+        return
     fi
-fi
 
-# allow a command line override
+    # determine the meta directory name
+    meta_dir_options=`git ls-files -o --directory`
+    for m in $meta_dir_options; do
+	if [ -d "$m/cfg" ]; then
+	    md=`echo $m | sed 's%/%%'`
+	fi
+    done
+
+    # store our results where other scripts can quickly find the answer
+    if [ -n "$md" ]; then
+        echo "$md" > .metadir
+    fi
+
+    # return the directory to he caller
+    echo $md
+}
+
+checkpoint_branch=$KMETA
 if [ -n "$cmd_branch" ]; then
     checkpoint_branch=$cmd_branch
 fi
 
-# Check to see if the checkpoint branch contains a directory of the
-# same name. If it does, that's the base of what we'll capture in the
-# checkpoint. If it doesn't, fallback to the 'meta' default.
+# verify we have a checkpoint branch and exit if one wasn't found
+if [ -z "$checkpoint_branch" ]; then
+    echo "[ERROR]: no checkpoint/meta branch found. Either set KMETA or pass it via -b."
+    exit 1
+fi
 
 git show-ref --quiet --verify -- "refs/heads/$checkpoint_branch"
 if [ $? -eq 1 ]; then
+    if [ -n "$verbose" ]; then
+        echo "Checkpoint branch [$checkpoint_branch] does not exist, using default meta directory"
+    fi
     meta_dir=$checkpoint_branch
 else
-    meta_dir=meta
-    git show $checkpoint_branch:$checkpoint_branch &> /dev/null
-    if [ $? -eq 0 ]; then
-	meta_dir=$checkpoint_branch
-    fi
+    meta_dir=`get_meta_dir`
 fi
 
-if [ -z "$checkpoint_branch" ]; then
-    echo "[ERROR]: an existing checkpoint branch was not detected and no command line branch provided"
-    exit 1
-fi
+echo $meta_dir
 
 if [ -z "$files_to_checkpoint" ]; then
     dirs_to_checkpoint="$meta_dir/cfg/kernel-*cache $meta_dir/cfg/scratch \
@@ -266,29 +278,27 @@ else # restoring ...
 
     # check if '$meta_dir' is tracked or not. If it is untracked, we don't
     # have anything to do.
-    x=`git ls-files -o $meta_dir | head -n1`
-    if [ -n "$x" ]; then
+    meta_dir=`get_meta_dir`
+    if [ -n "$meta_dir" ]; then
      	echo "[INFO]: checkpoint is already restored, nothing to do"
      	exit 0
     fi
 
-    # checkpoint-<branch> is tagged once and then never changes.  we
-    # considering everything from this tag to the HEAD of its branch part of
-    # the checkpoint. If the branch was an orphan branch, the merge_base will
-    # be zero. In that case, we just get all commits on the branch via git
-    # rev-list
+    # We consider everything on the checkpoint branch to be part of the stored
+    # state. If the branch was an orphan branch, the merge_base will be zero. In
+    # that case, we just get all commits on the branch via git rev-list
     merge_base=`git merge-base $checkpoint_branch master`
     if [ -z "$merge_base" ]; then
 	merge_base=`git rev-list $checkpoint_branch -- | tail -1`
     fi
 
     # save the old branch, and make the data untracked.
-    git checkout -q -f -b $checkpoint_branch-temp $checkpoint_branch
+    git checkout -q -f -b $checkpoint_branch-temp $checkpoint_branch &> /dev/null
     if [ $? != 0 ]; then
 	echo "[ERROR]: git checkout -q -b failed"
 	exit -1
     fi
-    git reset --mixed $merge_base
+    git reset --mixed $merge_base &> /dev/null
     if [ $? != 0 ]; then
 	echo "[ERROR]: git reset mixed failed"
 	exit -1
@@ -298,8 +308,20 @@ else # restoring ...
     # reset and can persist when we change the branch, but we need to
     # make a copy of them to *something* else, or git will complain about
     # them being clobbered when we switch away.
-    if [ ! -d ".$checkpoint_branch" ]; then
-	mv $checkpoint_branch .$checkpoint_branch
+
+    if [ -d "$checkpoint_branch" ]; then
+	checkpoint_dir=$checkpoint_branch
+    else
+	for f in `find -maxdepth 1 -type d -not -name .git -and -not -name . -printf '%f'`; do
+	    if [ -d "$f" ]; then
+	        # a directory is our meta dir
+		checkpoint_dir=$f
+	    fi
+	done
+    fi
+
+    if [ ! -d ".$checkpoint_dir" ]; then
+	mv $checkpoint_dir .$checkpoint_dir
     fi
 
     # delete our working branch, and return to the original one
@@ -322,4 +344,7 @@ else # restoring ...
 	echo "[ERROR]: git branch -D failed"
 	exit -1
     fi
+
+    # Double check the meta_dir, and write the results for following scripts
+    meta_dir=`get_meta_dir`
 fi

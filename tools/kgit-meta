@@ -36,7 +36,7 @@ cat <<EOF
 
  kgit-meta [--init] [--kconf] [--apply|--patch] [--continue]
            [--update] [--rc=<file>] [--stop_at=<patch>] [--skip=<patch>] 
-           [--dump] [-v] [-h] <meta-series>
+           [--gen] [--dump] [-v] [-h] <meta-series>
 
    <meta-series>: required if --apply or --kconf or --patch is used
 
@@ -54,7 +54,10 @@ cat <<EOF
                processing. --kconf --update will trigger an update
                of all the fragments in the repo AND setup the 
                fragment processing.
+     --gen: a git tree is being generated from a meta data respository,
+            ensure that all patches are validated.
      --skip: during application, skip a particular patch
+
    -h: help
    -v: verbose
 
@@ -88,6 +91,9 @@ while [ $# -gt 0 ]; do
 	--skip)
 		_skip=$2
 		shift
+		;;
+	--gen)
+		treegen=t
 		;;
 	-f|--force)
 		_force=t
@@ -128,9 +134,6 @@ if [ -n "$_continue" ]; then
 else
     active_patching=
 fi
-
-# Each BSP gets one of these in $meta/cfg/<BSP>/$fraglist
-fraglist="config_frag.txt"
 
 # yes this is a no-op for now, leaving it in in case
 # I change my mind later
@@ -478,28 +481,26 @@ branch_prep()
 {
     branch_name=$1
 
-    # even if we aren't creating the branch from scratch, it is possible
-    # that it has never been patched before. So let's make sure the 
-    # infrastructure for patching is in place
     if [ ! -d $meta_dir/patches/$branch_name ]; then
 	mkdir -p $meta_dir/patches/$branch_name
-    fi
-    if [ ! -e $meta_dir/patches/$branch_name/series ]; then	
- 	touch $meta_dir/patches/$branch_name/series
-    fi
-    if [ ! -e $meta_dir/patches/$branch_name/status ]; then
-	touch $meta_dir/patches/$branch_name/status
     fi
 
     series_file=$meta_dir/patches/$branch_name/series
     if [ -s $meta_dir/patches/$branch_name/series ]; then
-	cat $meta_dir/patches/$branch_name/series | tr -s / > $meta_dir/patches/$branch_name/series.new
-	mv $meta_dir/patches/$branch_name/series.new $meta_dir/patches/$branch_name/series
+	cat $meta_dir/patches/$branch_name/series | tr -s / > $meta_dir/patches/$branch_name/series.old
+	rm -f $meta_dir/patches/$branch_name/series
     fi
     status_file=$meta_dir/patches/$branch_name/status
     if [ -s $meta_dir/patches/$branch_name/status ]; then
-	cat $meta_dir/patches/$branch_name/status | tr -s / > $meta_dir/patches/$branch_name/status.new
-	mv $meta_dir/patches/$branch_name/status.new $meta_dir/patches/$branch_name/status
+	cat $meta_dir/patches/$branch_name/status | tr -s / > $meta_dir/patches/$branch_name/status.old
+	rm -f $meta_dir/patches/$branch_name/status
+    fi
+
+    if [ ! -e $meta_dir/patches/$branch_name/series ]; then
+	touch $meta_dir/patches/$branch_name/series
+    fi
+    if [ ! -e $meta_dir/patches/$branch_name/status ]; then
+	touch $meta_dir/patches/$branch_name/status
     fi
 
     patches_dir=$meta_dir/patches/$branch_name
@@ -519,6 +520,9 @@ do_branch()
     args=$@
     flags=
     name=
+
+    # a running total used to know when we are on the leaf node
+    branch_count=$[$branch_count + 1]
 
     for a in $args; do
 	case $a in
@@ -657,9 +661,17 @@ _strip_common_prefix()
 	    relocated_name=$t
 	    out_len=$this_len
 	fi
+	# add a trailing slash to get corner cases where one may
+	# have been added or not dropped
+	t=`echo $in_name/ | sed s%$r%%`
+	this_len=${#t}
+	if [ $this_len -lt $out_len ]; then
+	    relocated_name=$t
+	    out_len=$this_len
+	fi
     done
 
-    echo "$relocated_name"
+    echo "/$relocated_name"
 }
 
 do_pending_patches()
@@ -670,17 +682,51 @@ do_pending_patches()
 	return
     fi
 
+    # if we aren't doing a treegen, then we can bail out early if our
+    # current branch isn't the leaf node/final branch
+    if [ -z "$active_patching" ]; then
+        if [ -z "$treegen" -a "$branch_count" != "$total_branches" ]; then
+	    return
+        fi
+    fi
+
+    patch_fencepost="$first_patch_to_push"
+    if [ -e "$meta_dir/.last_patch" ]; then
+
+        sentinel=`cat $meta_dir/.last_patch`
+        if [ -n "$sentinel" ]; then
+            grep -q $sentinel $series_file
+            if [ $? -eq 0 ]; then
+                # the sentinel patch is in the series .. but is it the last patch in the
+                # series ? If it is the last patch, we'll use that as the "sentinel" and 
+                # skip everything, since the series is fully applied
+                lines_after=`grep -A1 $sentinel $series_file`
+                if [ -z "$lines_after" ]; then
+                    if [ -n "$verbose" ]; then
+                        echo "Last patch sentinel file detected ($meta_dir/.last_patch)."
+                        echo "Patching will resume from that point: $sentinel"
+                    fi
+
+                    patch_fencepost="$sentinel"
+                fi
+            fi
+        fi
+    fi
+
     if [ -n "$verbose" ]; then
 	flags="-v"
     fi
-	
-    patch_flags="-a"
 
-    eval "KMETA=$meta_dir kgit-s2q $flags --gen --patches `dirname $series_file` $patch_flags $_redir"
+    if [ -n "_$continue" ]; then
+        flags="$flags -a"
+    fi
+
+    eval "KMETA=$meta_dir kgit-s2q -v -v --gen --patches `dirname $series_file` $patch_flags -- $patch_fencepost $_redir"
     if [ $? -ne 0 ]; then
 	exit 1
     fi
 
+    echo "$last_patch_to_push" > $meta_dir/.last_patch
     last_patch_to_push=""
 }
 
@@ -767,6 +813,10 @@ do_patch()
 	    if [ -n "$added_to_series" ]; then
 		track_patch $sname
 	    fi
+
+	    if [ -z "$last_patch_to_push" ]; then
+		first_patch_to_push=$sname
+	    fi
 	    last_patch_to_push=$sname
 
 	    if [ $? -ne 0 ]; then
@@ -834,23 +884,37 @@ _git()
 
 _mark()
 {
-    n=$1
-    a=$2
+    input="$@"
 
-    if [ "$a" = "start" ]; then
-	do_pending_patches
-	if [ "$vlevel" -eq 2 ]; then
-	    echo "   mark --> $n"
-	fi
+    echo $input | grep -q "patching start"
+    if [ $? -eq 0 ]; then
+        active_patching="t"
     else
-        if [ "$vlevel" -eq 2 ]; then
-	    echo "   mark <-- $n"
-	fi
+        a=`echo $input | cut -d' ' -f2`
+        n=`echo $input | cut -d' ' -f1`
+        if [ "$a" = "start" ]; then
+	    do_pending_patches
+	    if [ "$vlevel" -eq 2 ]; then
+	        echo "   mark --> $n"
+	    fi
+        else
+            if [ "$vlevel" -eq 2 ]; then
+	        echo "   mark <-- $n"
+	    fi
+        fi
     fi
 }
 
 _patch()
 {   
+    # if we aren't doing a treegen, then we can bail out early if our
+    # current branch isn't the leaf node/final branch
+    if [ -z "$active_patching" ]; then
+        if [ -z "$treegen" -a "$branch_count" != "$total_branches" ]; then
+	    return
+        fi
+    fi
+
     if [ -n "$_stop_at" ]; then
 	echo $1 | grep -q -E "^$_stop_at"
 	if [ $? -eq 0 ]; then
@@ -944,6 +1008,8 @@ wrap_meta_series()
 
     rm -f $meta_dir/cfg/master_series
 
+    total_branches=`cat $_series.wrap |grep ^_branch_begin |wc -l`
+
     # now run the series
     source $_series.wrap
 
@@ -990,19 +1056,40 @@ if [ -n "$_rc_file" ] && [ -e "$_rc_file" ]; then
     done
 fi
 
-meta_dir_name=$KMETA
 show_inheritance_in_branches=t
-if [ -z "$meta_dir_name" ]; then
-    meta_dir_name=meta
-fi
 
-meta_dir=`find_dir $meta_dir_name`
-if [ -z "$meta_dir" ]; then
-    meta_dir=`find_dir ".$meta_dir_name"`
-    if [ -z "$meta_dir" ]; then
-	echo "ERROR cannot locate '$meta_dir_name' directory"
-	exit 1
+# determine the meta directory name. The meta directory is at the top level
+# of the repository, and is untracked.
+get_meta_dir()
+{
+    # if there's already a located and logged meta directory, just use that and
+    # return. Otherwise, we'll look around to see what we can find.
+    if [ -f ".metadir" ]; then
+        md=`cat .metadir`
+        echo $md
+        return
     fi
+
+    # determine the meta directory name
+    meta_dir_options=`git ls-files -o --directory`
+    for m in $meta_dir_options; do
+	if [ -d "$m/cfg" ]; then
+	    md=`echo $m | sed 's%/%%'`
+	fi
+    done
+
+    # store our results where other scripts can quickly find the answer
+    if [ -n "$md" ]; then
+        echo "$md" > .metadir
+    fi
+
+    # return the directory to he caller
+    echo $md
+}
+
+meta_dir=`get_meta_dir`
+if [ -z "$meta_dir" ]; then
+    meta_dir=".meta"
 fi
 
 work_cfg_dir=$meta_dir/cfg
@@ -1098,71 +1185,4 @@ fi
 if [ -n "$_dump" ]; then
     ## todo. dump the meta series
     true
-fi
-
-#
-# This option (re)generates the kconfig. IMPORTANT:  This is working from
-# the files as they are found in the $meta dir now -- the do_kconf() that
-# gets run during the initial pass over from --init puts the files from
-# the kernel-cache into the $meta dir.
-#
-if [ -n "$_kconf" ]; then
-	_meta_series=$meta_dir/meta-series
-	KTYPE=`grep '_define KTYPE'    $_meta_series | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
-	KMACH=`grep '_define KMACHINE' $_meta_series | head -n1 | awk '{print $4}'|sed 's/^.\(.*\).$/\1/'`
-	KTGT=$KTYPE/$KMACH
-
-	# we need to build our own list of relocation directories
-	rdirs=`cat $_meta_series|grep '^# _reloc_dir' |awk '{print $3}'`
-
-	# if --update AND --kconf were passed, let's run the
-	# meta series but only do the config fragment migration
-	if [ -n "$_update" ]; then
-	    wrap_meta_series $_meta_series "_kconf"
-	    exit 0
-	fi
-    
-	if [ -n "$verbose" ]; then
-	    echo "[INFO] collecting configs in $_meta_series "
-	fi
-
-	if [ ! -d "$meta_dir/cfg/$KTGT/" ]; then
-	    mkdir -p $meta_dir/cfg/$KTGT/
-	fi
-
-	if [ -z "$_continue" ]; then
-	    rm -f $meta_dir/cfg/$KTGT/{non_,}hdw_frags.txt
-	    rm -f $meta_dir/cfg/$KTGT/$fraglist
-	fi
-        cat $_meta_series | grep '^# _kconf' | while read entry; do
-		fragtype=`echo $entry | awk '{print $3}'`
-		fragname=`echo $entry | awk '{print $4}'`
-		reloc_frag=`_strip_common_prefix $fragname`
-
-		if [ ! -f "$fragname" ]; then
-			echo "[ERROR] frag $fragname does not exist"
-			exit 1
-		fi
-
-		if [ x$fragtype = xhardware ]; then
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/hdw_frags.txt
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
-		elif [ x$fragtype = xnon-hardware ]; then
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/non_hdw_frags.txt
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
-		elif [ x$fragtype = xrequired ]; then
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/required_frags.txt
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
-		elif [ x$fragtype = xoptional ]; then
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/optional_frags.txt
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/$fraglist
-		elif [ x$fragtype = xmask ]; then
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/masked_frags.txt
-		elif [ x$fragtype = xverify ]; then
-			echo "$reloc_frag" >> $meta_dir/cfg/$KTGT/verify_frags.txt
-		else
-			echo "[ERROR] type \"$fragtype\" of file \"$fragname\" is not a supported type"
-			exit 1
-		fi
-	done
 fi

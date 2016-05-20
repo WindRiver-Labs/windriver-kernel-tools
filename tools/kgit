@@ -188,8 +188,10 @@ clean_path()
     while :
     do
 	case $_p in
-	    */) _p=${_p%/} 
-		;;
+	    # disable the check for trailing slash and removal. We want this
+	    # to be present, and we really only care about double //
+	    #*/) _p=${_p%/} 
+	    #	;;
 
 	    *//*) _p=`echo $_p | sed s%//%/%g` 
                 ;;

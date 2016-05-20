@@ -97,8 +97,8 @@ if [ -z "$infiles" ]; then
 else
     for f in $infiles; do
 	if [ ! -f "$f" ]; then
-	err "ERROR. input file \"$f\" does not exist"
-	exit 1
+	    err "ERROR. input file \"$f\" does not exist"
+	    exit 1
 	fi
     done
 fi
@@ -160,14 +160,9 @@ kconf()
 
 mark()
 {
-    file=$1
-    start_or_end=$2
+    text="$@"
 
-    if [ "$start_or_end" = "start" ]; then
-	echo "   # _mark $file start"
-    else
-	echo "   # _mark $file end"	
-    fi
+    echo "# _mark $text"
 }
 
 reloc_dir()

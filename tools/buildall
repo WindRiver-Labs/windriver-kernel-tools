@@ -9,10 +9,6 @@
 #	$PATH which includes the above.
 #	Proper CROSS_COMPILE (per arch) settings; see defaults below.
 
-# Optional:
-#	ccache
-#	distcc
-
 #
 # Stick all your customizations, local $PATH additions in the below.
 #
@@ -35,7 +31,7 @@ fi
 # TREE=git://some.site.com/linux.git
 # both absolute paths and git repos are valid inputs
 if [ -z "$TREE" ]; then
-	TREE=git://git.yoctoproject.org/linux-yocto-3.4
+	TREE=git://git.yoctoproject.org/linux-yocto-3.17
 fi
 
 # Name of dir created for containing checked out src to build from
@@ -85,8 +81,12 @@ if [ -z "$X86_64_CROSS_COMPILE" ]; then
 fi
 
 MYPATH=`dirname $0`
-CONFIGME=$MYPATH/configme
-UPDATEME=$MYPATH/updateme
+MYPATH=`readlink -f $MYPATH`
+CONFIGME=`readlink -f $MYPATH/configme`
+UPDATEME=`readlink -f $MYPATH/updateme`
+
+PATH=$PATH:$MYPATH
+export PATH
 
 if [ -d $TREE ]; then
 	TREE=`readlink -f $TREE`
@@ -105,7 +105,7 @@ if [ ! -x $UPDATEME ];then
 fi
 
 if [ -z "$META_DIR" ]; then
-	META_DIR=meta
+	META_DIR=.meta
 fi
 
 if [ -z "$META_BRANCH" ]; then
@@ -133,6 +133,8 @@ build_branch()
 		CROSS_COMPILE=$MIPS_CROSS_COMPILE
 	elif [ "$ARCH" == "arm" ];then
 		CROSS_COMPILE=$ARM_CROSS_COMPILE
+	elif [ "$ARCH" == "arm64" ];then
+		CROSS_COMPILE=$ARM_CROSS_COMPILE
 	else
 		echo Unknown architecture: $ARCH -- Giving up.
 		return 1
@@ -143,22 +145,7 @@ build_branch()
 	if [ $? != 0 ]; then
 		echo Error: cant find a $CROSS_COMPILE\gcc in PATH
 		echo PATH is: $PATH
-		exit 1
-	fi
-
-	# Sanity checks specific to distcc/ccache usage
-	if [ ! -z "$CCACHE_PREFIX" ]; then
-		which ccache > /dev/null 2>&1
-		if [ $? != 0 ]; then
-			echo Warning: cant find ccache in PATH
-		fi
-
-		TC_GCC=`which $CROSS_COMPILE\gcc`
-		cmp -s $TC_GCC $CCACHE
-		if [ $? != 0 ]; then
-			echo Warning: $TC_GCC doesnt point at ccache
-			echo perhaps your toolchain is ahead of ccache in your path\?
-		fi
+		return 1
 	fi
 
 	export ARCH
@@ -337,6 +324,12 @@ else
 	cd $LINUX_SRC
 fi
 
+if [ ! -d $META_DIR/cfg/kernel-cache ]; then
+	echo \"$META_DIR/cfg/kernel-cache\" does not exist in $PWD.
+	echo Cant proceed without it.
+	exit 1
+fi
+
 # Create a mapping between scc and meta series and arch
 META_LIST=`mktemp`
 for i in `grep -Rl '^define KMACHINE' $META_DIR/cfg/kernel-cache` ; do
@@ -362,10 +355,12 @@ if [ $? != 0 ]; then
 	echo fatal: checkout of standard/base failed
 	exit 1
 fi
-$MYPATH/kgit-checkpoint -r > /dev/null 2>&1
 
-# since we are no longer on meta branch, meta dir will be preceeded by a dot
-META_DIR=".$META_DIR"
+$MYPATH/kgit-checkpoint -r > /dev/null 2>&1
+if [ $? != 0 ]; then
+	echo fatal: checkpoint restore failed
+	exit 1
+fi
 
 for i in `cat $META_LIST| awk '{print $4}'` ; do
 	KMACHINE=`grep $i $META_LIST | awk '{print $1}'`
@@ -417,13 +412,12 @@ for i in `cat $META_LIST| awk '{print $4}'` ; do
 		fi
 	fi
 
-	$UPDATEME -DKDESC=$KMACHINE:$KTYPE $KARCH $KMACH > updateme.log 2>&1
+	$UPDATEME -DKDESC=$KMACHINE:$KTYPE $ARCH $KMACHINE > updateme.log 2>&1
 	if [ $? != 0 ]; then
 		echo Generation of meta series from scc failed for $SCC
 		echo See updateme.log for details
 		exit 1
 	fi
-	rm -f updateme.log
 
 	if [ ! -f $METAPATH ]; then
 		echo Cant find meta series for $i
@@ -431,10 +425,13 @@ for i in `cat $META_LIST| awk '{print $4}'` ; do
 		exit 1
 	fi
 
+	rm -f updateme.log
+
 	BRANCH=`get_branch $METAPATH`
 	if [ -z "$BRANCH" ]; then
 		echo Cant find branch for $META
-		exit 1
+		echo Skipping it
+		continue
 	fi
 
 	git rev-parse $BRANCH > /dev/null 2>&1
@@ -443,7 +440,8 @@ for i in `cat $META_LIST| awk '{print $4}'` ; do
 		git rev-parse $BRANCH > /dev/null 2>&1
 		if [ $? != 0 ]; then
 			echo Cant find base branch \($BRANCH\) for $META
-			exit 1
+			echo Skipping it
+			continue
 		fi
 	fi
 
@@ -461,8 +459,10 @@ for i in `cat $META_LIST| awk '{print $4}'` ; do
 			echo Remove it if you want a rebuild of it from scratch
 			continue
 		else
-			echo Doing nuke-n-pave on old $i build since it previously failed.
-			rm -rf $BUILD_DIR
+			if [ -d $BUILD_DIR ]; then
+				echo Doing nuke-n-pave on old $i build since it did not pass
+				rm -rf $BUILD_DIR
+			fi
 		fi
 	else
 		if [ -d "$BUILD_DIR" ]; then
@@ -495,7 +495,9 @@ for i in `cat $META_LIST| awk '{print $4}'` ; do
 		if [ ! -f $BUILD_DIR/build.log ]; then
 			mv error.log $BUILD_DIR/build.log
 		fi
-		fail_mail $i $BUILD_DIR/build.log
+		if [ ! -z "$MAILTO" ]; then
+			fail_mail $i $BUILD_DIR/build.log
+		fi
 	else
 		echo -n passed.
 		touch $BUILD_DIR/00-PASS

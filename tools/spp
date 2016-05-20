@@ -107,8 +107,8 @@ if [ -z "$infiles" ]; then
 else
     for f in $infiles; do
 	if [ ! -f "$f" ]; then
-	err "ERROR. input file \"$f\" does not exist"
-	exit 1
+	    err "ERROR. input file \"$f\" does not exist"
+	    exit 1
 	fi
     done
 fi
