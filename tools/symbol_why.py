@@ -21,6 +21,7 @@
 ##     KERNELVERSION=4.7-rc5 SRCARCH=x86 ARCH=x86 ./Kconfiglib/examples/symbol_why.py
 
 import sys
+import os
 
 # Kconfiglib should be installed into an existing python library
 # location OR a path to where the library is should be set via something
@@ -28,10 +29,11 @@ import sys
 #
 # But if neither of those are true, let's try and find it ourselves
 #
+pathname = os.path.dirname(sys.argv[0])
 try:
     import kconfiglib
 except ImportError:
-    sys.path.append('./Kconfiglib')
+    sys.path.append( pathname + '/Kconfiglib')
     try:
         import kconfiglib
     except ImportError:
