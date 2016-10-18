@@ -463,7 +463,7 @@ process_file()
             relative_patch=$(strip_common_prefix $patch_name)
             containing_dir=$(echo ${patch_name} | sed "s%${relative_patch}%%")
             echo "prefix ${containing_dir}"
-            echo "patch ${patch_name_new}"
+            echo "patch \"${patch_name_new}\""
             return
             ;;
         *.cfg)
@@ -622,7 +622,7 @@ process_file()
                 relative_patch=$(strip_common_prefix $patch_name)
                 containing_dir=$(echo ${patch_name} | sed "s%${relative_patch}%%")
                 echo "prefix ${containing_dir}"
-                echo "patch ${patch_name}"
+                echo "patch \"${patch_name}\""
             fi
 
             IFS='

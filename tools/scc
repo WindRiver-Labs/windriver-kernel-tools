@@ -357,7 +357,7 @@ fi
 
 # And we optionally set up pointers to a patch and config.queue
 configqueue="/dev/null"
-patchqueue="/dev/null"
+patchqueue="/tmp/patch.unused.queue"
 
 echo ${artifacts} | grep -w -q cfg
 if [ $? -eq 0 ]; then

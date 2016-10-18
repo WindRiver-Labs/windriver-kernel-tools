@@ -25,8 +25,8 @@ patch() {
     cp -f "$patch_name" "${outdir}/patches/${cbranch_name}/${relative_patch_dir}"
 
     # output to the global and branch specific queue
-    eval echo patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name} >> "${patchqueue}"
-    eval echo patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name} >> "${branch_patch_queue}"
+    eval echo "\"patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name}\"" >> "${patchqueue}"
+    eval echo "\"patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name}\"" >> "${branch_patch_queue}"
     # outfile_append is the meta-series
-    eval echo "patch patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name}" $outfile_append
+    eval echo "\"patch patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name}\"" $outfile_append
 }
