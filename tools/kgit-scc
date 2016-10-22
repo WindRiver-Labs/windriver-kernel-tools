@@ -42,7 +42,7 @@ cat <<EOF
 
  kgit-scc [-e <dir>] [--prep <feat1 feat2 feat3>]
           [-v] [-h] [-j <count>] [-I<dirs to search>] 
-          [--meta-repo <repo>] <input> <output>
+          <input> <output>
 
   A front end to the 'series code compiler (scc)'. It facilitiates
   using scc to build a complete repository or to search/interpret 
@@ -57,7 +57,6 @@ cat <<EOF
    --prep:    : features that should be used to prep a repository build
    --meta-dir <metadir>:  dir with meta content (default "meta")
    --meta-branch <metabr>:  branch to store meta content (default "meta")
-   --meta-repo <metarepo>:  git repository that stores meta data
 
    -I <dirs>  : directories to search for .scc files
    -i <dirs>  : directories to serach for source repos
