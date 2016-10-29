@@ -177,6 +177,7 @@ if [ -n "$_rc_file" ] && [ -e "$_rc_file" ]; then
 fi
 
 # returns 0 if "branch" or "branch/base" already exists
+# echos the name of the branch that matched
 check_branch() {
     local b=$1
 
@@ -184,15 +185,17 @@ check_branch() {
     if [ $? -ne 0 ]; then
         git show-ref --verify --quiet refs/heads/${b}/base
         if [ $? -ne 0 ]; then
+            echo ${b}
             return 1
         else
+            echo ${b}/base
             return 0
         fi
     else
+        echo ${b}
         return 0
     fi
 }
-
 
 meta_dir="$(dirname ${meta_series})"
 # process the meta series, line by line
@@ -209,18 +212,19 @@ for fline in `cat ${meta_series}`; do
             echo "[INFO]: branch rename: ${b}"
             old=$(echo ${b} | cut -d' ' -f1)
             new=$(echo ${b} | cut -d' ' -f2)
-            check_branch ${new}
+            x="$(check_branch ${new})"
             if [ $? -ne 0 ]; then
                 eval git branch -m ${old} ${new}
             else
                 echo "[INFO]: branch ${new} already exists"
             fi
+            eval git checkout ${new}
             ;;
         branch:*)
             dopatch=
 
             b=$(echo ${fline} | cut -d: -f2 | sed 's%^\ %%')
-            check_branch ${b}
+            b="$(check_branch ${b})"
             if [ $? -ne 0 ]; then
                 echo "[INFO]: branch create: ${b}"
                 eval git checkout -b ${b}
@@ -229,6 +233,7 @@ for fline in `cat ${meta_series}`; do
                 dopatch=t
             else
                 echo "[INFO]: reusing branch ${b}"
+                eval git checkout ${b}
                 if [ -n "${resume}" ]; then
                     dopatch=t
                 fi
