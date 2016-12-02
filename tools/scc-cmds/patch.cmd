@@ -26,7 +26,9 @@ patch() {
 
     # output to the global and branch specific queue
     eval echo "\"patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name}\"" >> "${patchqueue}"
-    eval echo "\"patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name}\"" >> "${branch_patch_queue}"
+    if [ -n "${branch_patch_queue}" ]; then
+       eval echo "\"patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name}\"" >> "${branch_patch_queue}"
+    fi
     # outfile_append is the meta-series
     eval echo "\"patch patches/${cbranch_name}/${relative_patch_dir}/${simple_patch_name}\"" $outfile_append
 }
