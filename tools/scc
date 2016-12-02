@@ -209,6 +209,8 @@ process_file()
     local in=$1
     local ret=0
     local done=""
+    local scc_output_file="$(mktemp)"
+
 
     # source the file, but clear the path, since we only want commands
     # that we declare as valid to run
@@ -240,20 +242,20 @@ process_file()
         unset PATH
         (
             set -e
-            eval . $in $outfile_append > /tmp/scc-output 2>&1
+            eval . $in $outfile_append > ${scc_output_file} 2>&1
         )
     )
 
     if [ $? -ne 0 ]; then
         echo "[ERROR]: processing of file $in failed"
-        cat /tmp/scc-output
+        cat ${scc_output_file}
 
         # look for common errors so we can point to the right input file
 
         # 1) /tmp/tmp.gfN6WsbDHN: line 403: cat: No such file or directory
         #     "grep -oh" will only output what matches, which gets us "line 404: .."
         #     cut gets us the second field, which is the line number
-        line=$(cat /tmp/scc-output | grep -oh "line.*:" | cut -f2 -d' ' | sed 's/://g')
+        line=$(cat ${scc_output_file} | grep -oh "line.*:" | cut -f2 -d' ' | sed 's/://g')
         if [ -n "$line" ]; then
             let start_line=$line-20
             let end_line=$line+10
@@ -267,9 +269,11 @@ process_file()
             echo ""
             echo "See pre-processed file $in for more details"
         fi
+	rm -f ${scc_output_file}
         exit 1
     fi
 
+    rm -f ${scc_output_file}
     return 0
 }
 
