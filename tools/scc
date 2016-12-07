@@ -246,6 +246,10 @@ process_file()
         )
     )
 
+    if [ -n "${verbose}" ]; then
+        cat ${scc_output_file}
+    fi
+
     if [ $? -ne 0 ]; then
         echo "[ERROR]: processing of file $in failed"
         cat ${scc_output_file}
@@ -371,7 +375,7 @@ fi
 
 # And we optionally set up pointers to a patch and config.queue
 configqueue="/dev/null"
-patchqueue="/tmp/patch.unused.queue"
+patchqueue="${outdir}/unused.patch.queue"
 
 echo ${artifacts} | grep -w -q cfg
 if [ $? -eq 0 ]; then
@@ -380,6 +384,8 @@ if [ $? -eq 0 ]; then
 fi
 echo ${artifacts} | grep -w -q patch
 if [ $? -eq 0 ]; then
+    # remove the emp variant
+    rm -f ${patchqueue}
     patchqueue="${outdir}/patch.queue"
     rm -f "${outdir}"/patch*.queue
 fi
@@ -405,6 +411,11 @@ if [ $ret -ne 0 ]; then
         fi
 	rm -f ${pre_processed_file}
     fi
+fi
+
+echo ${patchqueue} | grep -q unused.queue
+if [ $? -eq 0 ]; then
+    rm -f ${patchqueue}
 fi
 
 exit $ret
