@@ -411,6 +411,8 @@ if [ $ret -ne 0 ]; then
         fi
 	rm -f ${pre_processed_file}
     fi
+else
+    rm -f ${pre_processed_file}
 fi
 
 echo ${patchqueue} | grep -q unused.queue
